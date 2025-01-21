@@ -1,30 +1,14 @@
 <template>
-  <DacklHeaderBar app-name="Easy Loan" :app-logo="appLogo" :isLoggedIn="isLoggedIn" :webId="session.webId" />
+  <DacklHeaderBar app-name="Wizard" :app-logo="appLogo" :isLoggedIn="isLoggedIn" :webId="session.webId" />
 
-  <div class="px-4 pt-3 bg-gradient-blue">
-    <TabList class="mt-4" @item-change="tabListItemChange" :model="tabMenu" :active="routeName" />
-  </div>
-
-  <div v-if="isLoggedIn && session.rdp" class="m-1 lg:m-5">
-    <router-view />
+  <div v-if="isLoggedIn && session.rdp" class="mt-4">
+    TODO Wizard 
+    WEBID: {{ session.webId }}
+    memberOf: {{ memberOf }}
+    
   </div>
   <UnauthenticatedCard v-else />
-  <!-- This div is a buffer area for the bottom navigation tool (speeddial or other) -->
-  <div style="height: 75px" />
-
-  <Dialog
-    header="We updated the App!"
-    v-model:visible="isOpen"
-    position="bottomright"
-  >
-    <div>Please save your progress.</div>
-    <div>Use the latest version.</div>
-
-    <template #footer>
-      <Button label="Update" autofocus @click="refreshApp" />
-    </template>
-  </Dialog>
-
+  
   <Toast
     position="bottom-right"
     :breakpoints="{ '420px': { width: '100%', right: '0', left: '0' } }"
@@ -34,39 +18,36 @@
 </template>
 
 <script lang="ts" setup>
-import {DacklHeaderBar, TabItemType, TabList, UnauthenticatedCard} from "@datev-research/mandat-shared-components";
-import {useIsLoggedIn, useServiceWorkerUpdate, useSolidProfile, useSolidSession} from "@datev-research/mandat-shared-composables";
-import Button from "primevue/button";
+import {DacklHeaderBar, UnauthenticatedCard} from "@datev-research/mandat-shared-components";
+import {useIsLoggedIn, useSolidProfile, useSolidSession} from "@datev-research/mandat-shared-composables";
+import { getResource, parseToN3, SPACE } from "@datev-research/mandat-shared-solid-requests";
+import { NamedNode } from "n3";
 import Toast from "primevue/toast";
-import {computed, ref, watch} from "vue";
-import {useRoute} from "vue-router";
-import router from "./router";
+import {ref, watch} from "vue";
 
 const appLogo = require('@/assets/logo.svg');
-const route = useRoute()
-const { hasUpdatedAvailable, refreshApp } = useServiceWorkerUpdate();
+
 const isOpen = ref(false);
-const routeName = computed<string>(() => `${route.name}`);
 const { isLoggedIn } = useIsLoggedIn();
 const { session, restoreSession } = useSolidSession();
 const { memberOf } = useSolidProfile()
 
-const tabMenu = ref<TabItemType[]>([
-  { id: 'create-demand', label: 'Get new Offer' },
-  { id: 'demands', label: 'Demands' },
-  { id: 'services', label: 'Contracted Services' },
-]);
-
-function tabListItemChange(itemId: string) {
-  router.push({ name: itemId });
-}
-
-watch(hasUpdatedAvailable, () => {
-  isOpen.value = hasUpdatedAvailable.value;
-});
 
 // re-use Solid session
-router.isReady().then(restoreSession)
+await restoreSession();
+
+const organisationPod = (await getResource(memberOf.value, session).then(resp => resp.data));
+console.log("organisationPod", organisationPod)
+const organisationStore = (await parseToN3(organisationPod, memberOf.value)).store;
+console.log("got organisationStore");
+const organisationStorage = organisationStore.getObjects(
+  memberOf.value, new NamedNode(SPACE("storage")), null
+).at(0)?.value;
+console.log("organisationStorage: ",  `${organisationStorage}documents`);
+const dataRegistryUri = `${organisationStorage}documents`;
+const exists = (await getResource(dataRegistryUri, session).then(resp => resp.data).catch(_err => null))
+
+console.log("does it exist?", !!exists)
 </script>
 
 <style>
