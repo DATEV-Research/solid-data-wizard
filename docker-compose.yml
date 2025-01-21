@@ -1,0 +1,7 @@
+services:
+  mandat-app-wizard:
+    build:
+      context: ./apps/wizard
+      dockerfile: ../../Dockerfile-app
+    ports:
+      - "8080:80"
