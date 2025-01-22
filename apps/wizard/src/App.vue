@@ -24,6 +24,7 @@ import { getResource, parseToN3, SPACE } from "@datev-research/mandat-shared-sol
 import { NamedNode } from "n3";
 import Toast from "primevue/toast";
 import {ref, watch} from "vue";
+import { useOrganisationStore } from "./composables/useOrganisationStore";
 
 const appLogo = require('@/assets/logo.svg');
 
@@ -32,22 +33,10 @@ const { isLoggedIn } = useIsLoggedIn();
 const { session, restoreSession } = useSolidSession();
 const { memberOf } = useSolidProfile()
 
+const nothing = useOrganisationStore();
 
 // re-use Solid session
-await restoreSession();
-
-const organisationPod = (await getResource(memberOf.value, session).then(resp => resp.data));
-console.log("organisationPod", organisationPod)
-const organisationStore = (await parseToN3(organisationPod, memberOf.value)).store;
-console.log("got organisationStore");
-const organisationStorage = organisationStore.getObjects(
-  memberOf.value, new NamedNode(SPACE("storage")), null
-).at(0)?.value;
-console.log("organisationStorage: ",  `${organisationStorage}documents`);
-const dataRegistryUri = `${organisationStorage}documents`;
-const exists = (await getResource(dataRegistryUri, session).then(resp => resp.data).catch(_err => null))
-
-console.log("does it exist?", !!exists)
+restoreSession();
 </script>
 
 <style>
