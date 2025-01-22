@@ -5,7 +5,7 @@
     TODO Wizard 
     WEBID: {{ session.webId }}
     memberOf: {{ memberOf }}
-    
+    <input type="file" @change="fileChanged" />
   </div>
   <UnauthenticatedCard v-else />
   
@@ -20,15 +20,11 @@
 <script lang="ts" setup>
 import {DacklHeaderBar, UnauthenticatedCard} from "@datev-research/mandat-shared-components";
 import {useIsLoggedIn, useSolidProfile, useSolidSession} from "@datev-research/mandat-shared-composables";
-import { getResource, parseToN3, SPACE } from "@datev-research/mandat-shared-solid-requests";
-import { NamedNode } from "n3";
 import Toast from "primevue/toast";
-import {ref, watch} from "vue";
 import { useOrganisationStore } from "./composables/useOrganisationStore";
 
 const appLogo = require('@/assets/logo.svg');
 
-const isOpen = ref(false);
 const { isLoggedIn } = useIsLoggedIn();
 const { session, restoreSession } = useSolidSession();
 const { memberOf } = useSolidProfile()
@@ -37,6 +33,10 @@ const nothing = useOrganisationStore();
 
 // re-use Solid session
 restoreSession();
+
+function fileChanged(event: Event): void {
+  console.log('fileChanged', event);
+}
 </script>
 
 <style>

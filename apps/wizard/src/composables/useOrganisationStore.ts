@@ -1,157 +1,92 @@
-import { useIsLoggedIn, useSolidProfile, useSolidSession } from "@datev-research/mandat-shared-composables";
-import { getResource, ParsedN3, parseToN3, SPACE } from "@datev-research/mandat-shared-solid-requests";
-import { NamedNode, Store, Writer, Prefixes } from 'n3';
+import { uriExists, requestStore, getFirstObjectValue } from "@/utils/solid-helper";
+import {
+  useIsLoggedIn,
+  useSolidProfile,
+  useSolidSession,
+} from "@datev-research/mandat-shared-composables";
+import {
+  ParsedN3,
+  SPACE,
+} from "@datev-research/mandat-shared-solid-requests";
+import { Writer, DataFactory, NamedNode } from "n3";
 import { ref, watch } from "vue";
 
+/**
+ * TODOs
+ *
+ * Base SME URI: https://sme.solid.aifb.kit.edu
+ *
+ * - validate given names using a regex
+ * - ☑️ get data registry by URI and check if it exists, sample https://sme.solid.aifb.kit.edu/dataregistry
+ *   - ☑️ if it exists, skip creating it
+ *   - if it does not exist: create data registry for given name using n3.Writer
+ * - ☑️ get data registration by URI and check if it exists, sample https://sme.solid.aifb.kit.edu/dataregistry/dataregistrations
+ *   - ☑️ if it exists: throw an error,
+ *   - if it does not exist: create data registration for given name using n3.Writer
+ *
+ * - add upload file button for the user
+ * - add upload mechanism using the data registry & data registration path.
+ * - test if it is using the right mime-types and so on.
+ * - handle errors
+ * - write tests
+ */
+
+/** Testing n3-writer *
+const { namedNode, literal, quad } = DataFactory;
+const writer = new Writer({
+  format: "text/turtle",
+  prefixes: { c: 'http://example.org/cartoons#' },
+});
+writer.addQuad(
+  quad(
+    namedNode('http://example.org/cartoons#Tom'),
+    namedNode('http://example.org/cartoons#name'),
+    literal('Tom')                                
+  )
+);
+writer.end((error, result) => console.log(result));
+/** */
+
 export const useOrganisationStore = () => {
-    const { isLoggedIn } = useIsLoggedIn();
-    const { memberOf } = useSolidProfile();
-    const { session } = useSolidSession();
+  const { isLoggedIn } = useIsLoggedIn();
+  const { memberOf } = useSolidProfile();
+  const { session } = useSolidSession();
 
-    const organisationStore = ref<ParsedN3 | null>(null);
+  const organisationStore = ref<ParsedN3 | null>(null);
 
-    /**
-     * internal initialisation of the `organisationStore`.
-     */
-    const __initiate = async () => {
-        organisationStore.value = (await __requestStore(memberOf.value));
-        const organisationStorageUri = __getFirstObjectValue(memberOf.value, SPACE("storage"), organisationStore.value);
-        
-        console.debug("useOrganisationStore [DEBUG]: Got storage URI", organisationStorageUri, organisationStore.value?.prefixes);
+  /**
+   * internal initialisation of the `organisationStore`.
+   */
+  const __initiate = async () => {
+    organisationStore.value = await requestStore(memberOf.value, session);
+    const organisationStorageUri = getFirstObjectValue(
+      memberOf.value,
+      SPACE("storage"),
+      organisationStore.value
+    );
 
+    /* Sample how to create registry, registration and data instances:
+    const { uri: registryUri } = await createDataRegistry(organisationStorageUri, "myDataRegistry", session);
+    const { uri: registrationUri } = await createDataRegistration(registryUri, 'anotherName', session);
+    const result1 = await createNamedDataInstance(registrationUri, 'another-name', '["some-data"]', "application/json", session)
+    const result2 = await createDataInstance(registrationUri, '["some-more-data"]', "application/json", session)
+    console.log('DATA INSTANCES', result1, result2);
+    /* */
+  };
 
-        __requestStore(`${organisationStorageUri}shapetrees/`).then(store => __logStore(store, 'shapetrees'));
-        __requestStore(`${organisationStorageUri}shapetrees/b445a3a7-883c-45b4-aa74-c9ae0b254fe0.meta`).then(store => __logStore(store, 'shapetree meta'));
-        // __requestStore(`${organisationStorageUri}inbox/`).then(store => __logStore(store, 'inbox'));
-        // __requestStore(`${organisationStorageUri}memberships/`).then(store => __logStore(store, 'memberships'));
-        // __requestStore(`${organisationStorageUri}shapetrees/`).then(store => __logStore(store, 'shapetrees'));
-        // __requestStore(`${organisationStorageUri}wallet/`).then(store => __logStore(store, 'wallet'));
-        // __requestStore(`${organisationStorageUri}does-not-exist/`).then(store => __logStore(store, 'does-not-exist'));
-        const doesExist = await __exists(organisationStorageUri, 'unknown');
-        console.debug("useOrganisationStore [DEBUG]: Store unknown exists?", doesExist);
+  /**
+   * watch change of `memberOf` to initiate the organisationStore.
+   * Changes to memberOf mean the user logged in or changed.
+   */
+  watch(
+    memberOf,
+    async () => {
+      if (isLoggedIn.value) {
+        await __initiate();
+      }
+    },
+    { immediate: true }
+  );
 
-        // Testing n3.Writer from a Store
-
-        const shapeTreesStore = await __requestStore(`${organisationStorageUri}shapetrees/`)
-        const writer = new Writer({ prefixes: shapeTreesStore!.prefixes });
-        writer.addQuads(shapeTreesStore!.store.getQuads(null, null, null, null));
-        writer.end((error, resultRdf) => {
-            console.debug("useOrganisationStore [DEBUG]: Extract RDF from existing Store:", resultRdf)
-        });
-    };
-
-    /**
-     * retrieves the first object-value of the given URI & keyName.
-     * If there is no value to retrieve, it returns an empty string and creates a warning console message.
-     *
-     * @param uri identifier or just a Container URL, sample "https://sme.solid.aifb.kit.edu/shapetrees/d34a5437-fb1c-42dc-9338-79ab9f9ac849"
-     * @param keyName predicate or keyName, sample "http://www.w3.org/ns/posix/stat#mtime "
-     * @param store store where to retrieve the information from.
-     * @returns either the string value or an empty string
-     */
-    const __getFirstObjectValue = (uri: string, keyName: string, store: ParsedN3 | null): string => {
-        const firstValue = __getObjectValues(uri, keyName, store).at(0);
-        if (!firstValue) {
-            console.warn("useOrganisationStore [WARN]: __getFirstObjectValue failed to retrieve value for", uri, keyName);
-            return "";
-        }
-        return firstValue;
-    }
-
-    /**
-     * Checks e.g. https://sme.solid.aifb.kit.edu/access-inbox/ to be existent and returns true or false.
-     *
-     * @param uri subject or URI of a container, sample: "https://sme.solid.aifb.kit.edu/"
-     * @param name sample: "access-inbox"
-     */
-    const __exists = async (uri: string, name: string) => {
-        const store = await __requestStore(`${uri}${name}/`);
-        return store !== null;
-    };
-
-    /**
-     * Logs the contents of a store including their subjects and predicates.
-     * @param store the store that should be logged to console.
-     * @param name the store's name.
-     */
-    const __logStore = (parsedN3: ParsedN3 | null, name?: string): void => {
-        if (parsedN3) {
-            // console.debug(`useOrganisationStore.__logStore [DEBUG]: ${name}.getGraphs`, parsedN3.getGraphs(null, null, null));
-            // console.debug(`useOrganisationStore.__logStore [DEBUG]: ${name}.getPredicates`, parsedN3.getPredicates(null, null, null));
-            // console.debug(`useOrganisationStore.__logStore [DEBUG]: ${name}.getQuads`, parsedN3.getQuads(null, null, null, null));
-            // console.debug(`useOrganisationStore.__logStore [DEBUG]: ${name}.getObjects`, parsedN3.getObjects(null, null, null));
-            // console.debug(`useOrganisationStore.__logStore [DEBUG]: ${name}.getSubjects`, parsedN3.getSubjects(null, null, null));
-
-            const mappedObject = parsedN3.store.getSubjects(null, null, null).reduce((obj, currentSubject) => {
-                const { value: subjectValue } = currentSubject;
-                obj[subjectValue] = parsedN3.store.getPredicates(subjectValue, null, null)
-                .reduce((acc, current) => {
-                    const {value: predicateValue} =  current;
-                    acc[predicateValue] = __getObjectValues(subjectValue, predicateValue, parsedN3).map(value => __mapValue(predicateValue, value));
-                    return acc;
-                }, {} as Record<string, unknown>);;
-                return obj;
-            }, {} as Record<string, Record<string, unknown>>);
-
-            console.debug(`useOrganisationStore.__logStore [DEBUG]: ${name}.getObjects`, mappedObject);
-        }
-    };
-
-    /**
-     * @param uri identifier or just a Container URL, sample "https://sme.solid.aifb.kit.edu/shapetrees/d34a5437-fb1c-42dc-9338-79ab9f9ac849"
-     * @param keyName (optional) predicate or keyName, sample "http://www.w3.org/1999/02/22-rdf-syntax-ns#type"
-     * @param parsedN3 parsedN3 where to retrieve the information from. Can be `null`, but then the result is also `null`.
-     * @returns sample `[ "http://www.w3.org/ns/ldp#Resource", "http://www.w3.org/ns/iana/media-types/application/pdf#Resource" ]`
-     */
-    const __getObjectValues = (uri: string, keyName: string | null = null, parsedN3: ParsedN3 | null = null): string[] => {
-        if (!parsedN3){
-            return [];
-        }
-
-        return parsedN3.store.getObjects(
-            uri, keyName ?? null, null
-            ).map(a => a.value);
-    };
-
-    /**
-     * maps object values to their predicate defined type, like Date or Number.
-     * @param predicate predicate value that defines the type
-     * @param value the raw string value that should be converted/mapped.
-     * @returns 
-     */
-    const __mapValue = (predicate: string, value: string): unknown => {
-        switch (predicate) {
-            case "http://purl.org/dc/terms/modified": return new Date(value); // value is ISO String
-            case "http://www.w3.org/ns/posix/stat#mtime": return new Date(Number(`${value}000`)); // value is Timestamp in seconds
-            case "http://www.w3.org/ns/posix/stat#size": return Number(`${value}`); // value is number
-            default: return value;
-        }
-    };
-
-    /**
-     * requests and returns a store if found. Otherwise it returns `null`.
-     * @param uri the identifier URL like "https://sme.solid.aifb.kit.edu/shapetrees/d34a5437-fb1c-42dc-9338-79ab9f9ac849"
-     * @returns Store object if URI is valid, otherwise null.
-     */
-    const __requestStore = async (uri: string): Promise<ParsedN3 | null> => {
-        try {
-            const rawRdf = (await getResource(uri, session).then(({data}) => data));
-            return await parseToN3(rawRdf, uri);
-        } catch (error: unknown) {
-            console.error("useOrganisationStore [ERR]: Requesting URI or Parsing Store failed" , { error, uri });
-            return null;
-        }
-    };
-
-    /**
-     * watch change of `memberOf` to initiate the organisationStore.
-     * Changes to memberOf mean the user logged in or changed.
-     */
-    watch(memberOf, async () => {
-        if (isLoggedIn.value){
-            await __initiate();
-        }
-    }, { immediate: true });
-
-    return {};
-}
+  return {};
+};
