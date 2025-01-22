@@ -1,6 +1,6 @@
 import { useIsLoggedIn, useSolidProfile, useSolidSession } from "@datev-research/mandat-shared-composables";
-import { getResource, parseToN3, SPACE } from "@datev-research/mandat-shared-solid-requests";
-import { NamedNode, Store } from "n3";
+import { getResource, ParsedN3, parseToN3, SPACE } from "@datev-research/mandat-shared-solid-requests";
+import { NamedNode, Store, Writer, Prefixes } from 'n3';
 import { ref, watch } from "vue";
 
 export const useOrganisationStore = () => {
@@ -8,16 +8,16 @@ export const useOrganisationStore = () => {
     const { memberOf } = useSolidProfile();
     const { session } = useSolidSession();
 
-    const organisationStore = ref<Store | null>(null);
+    const organisationStore = ref<ParsedN3 | null>(null);
 
     /**
      * internal initialisation of the `organisationStore`.
      */
     const __initiate = async () => {
-        organisationStore.value = await __requestStore(memberOf.value);
+        organisationStore.value = (await __requestStore(memberOf.value));
         const organisationStorageUri = __getFirstObjectValue(memberOf.value, SPACE("storage"), organisationStore.value);
         
-        console.debug("useOrganisationStore [DEBUG]: Got storage URI", organisationStorageUri);
+        console.debug("useOrganisationStore [DEBUG]: Got storage URI", organisationStorageUri, organisationStore.value?.prefixes);
 
 
         __requestStore(`${organisationStorageUri}shapetrees/`).then(store => __logStore(store, 'shapetrees'));
@@ -29,6 +29,15 @@ export const useOrganisationStore = () => {
         // __requestStore(`${organisationStorageUri}does-not-exist/`).then(store => __logStore(store, 'does-not-exist'));
         const doesExist = await __exists(organisationStorageUri, 'unknown');
         console.debug("useOrganisationStore [DEBUG]: Store unknown exists?", doesExist);
+
+        // Testing n3.Writer from a Store
+
+        const shapeTreesStore = await __requestStore(`${organisationStorageUri}shapetrees/`)
+        const writer = new Writer({ prefixes: shapeTreesStore!.prefixes });
+        writer.addQuads(shapeTreesStore!.store.getQuads(null, null, null, null));
+        writer.end((error, resultRdf) => {
+            console.debug("useOrganisationStore [DEBUG]: Extract RDF from existing Store:", resultRdf)
+        });
     };
 
     /**
@@ -40,7 +49,7 @@ export const useOrganisationStore = () => {
      * @param store store where to retrieve the information from.
      * @returns either the string value or an empty string
      */
-    const __getFirstObjectValue = (uri: string, keyName: string, store: Store | null): string => {
+    const __getFirstObjectValue = (uri: string, keyName: string, store: ParsedN3 | null): string => {
         const firstValue = __getObjectValues(uri, keyName, store).at(0);
         if (!firstValue) {
             console.warn("useOrganisationStore [WARN]: __getFirstObjectValue failed to retrieve value for", uri, keyName);
@@ -65,20 +74,20 @@ export const useOrganisationStore = () => {
      * @param store the store that should be logged to console.
      * @param name the store's name.
      */
-    const __logStore = (store: Store | null, name?: string): void => {
-        if (store) {
-            // console.debug(`useOrganisationStore.__logStore [DEBUG]: ${name}.getGraphs`, store.getGraphs(null, null, null));
-            // console.debug(`useOrganisationStore.__logStore [DEBUG]: ${name}.getPredicates`, store.getPredicates(null, null, null));
-            // console.debug(`useOrganisationStore.__logStore [DEBUG]: ${name}.getQuads`, store.getQuads(null, null, null, null));
-            // console.debug(`useOrganisationStore.__logStore [DEBUG]: ${name}.getObjects`, store.getObjects(null, null, null));
-            // console.debug(`useOrganisationStore.__logStore [DEBUG]: ${name}.getSubjects`, store.getSubjects(null, null, null));
+    const __logStore = (parsedN3: ParsedN3 | null, name?: string): void => {
+        if (parsedN3) {
+            // console.debug(`useOrganisationStore.__logStore [DEBUG]: ${name}.getGraphs`, parsedN3.getGraphs(null, null, null));
+            // console.debug(`useOrganisationStore.__logStore [DEBUG]: ${name}.getPredicates`, parsedN3.getPredicates(null, null, null));
+            // console.debug(`useOrganisationStore.__logStore [DEBUG]: ${name}.getQuads`, parsedN3.getQuads(null, null, null, null));
+            // console.debug(`useOrganisationStore.__logStore [DEBUG]: ${name}.getObjects`, parsedN3.getObjects(null, null, null));
+            // console.debug(`useOrganisationStore.__logStore [DEBUG]: ${name}.getSubjects`, parsedN3.getSubjects(null, null, null));
 
-            const mappedObject = store.getSubjects(null, null, null).reduce((obj, currentSubject) => {
+            const mappedObject = parsedN3.store.getSubjects(null, null, null).reduce((obj, currentSubject) => {
                 const { value: subjectValue } = currentSubject;
-                obj[subjectValue] = store.getPredicates(subjectValue, null, null)
+                obj[subjectValue] = parsedN3.store.getPredicates(subjectValue, null, null)
                 .reduce((acc, current) => {
                     const {value: predicateValue} =  current;
-                    acc[predicateValue] = __getObjectValues(subjectValue, predicateValue, store).map(value => __mapValue(predicateValue, value));
+                    acc[predicateValue] = __getObjectValues(subjectValue, predicateValue, parsedN3).map(value => __mapValue(predicateValue, value));
                     return acc;
                 }, {} as Record<string, unknown>);;
                 return obj;
@@ -91,15 +100,15 @@ export const useOrganisationStore = () => {
     /**
      * @param uri identifier or just a Container URL, sample "https://sme.solid.aifb.kit.edu/shapetrees/d34a5437-fb1c-42dc-9338-79ab9f9ac849"
      * @param keyName (optional) predicate or keyName, sample "http://www.w3.org/1999/02/22-rdf-syntax-ns#type"
-     * @param store store where to retrieve the information from. Can be `null`, but then the result is also `null`.
+     * @param parsedN3 parsedN3 where to retrieve the information from. Can be `null`, but then the result is also `null`.
      * @returns sample `[ "http://www.w3.org/ns/ldp#Resource", "http://www.w3.org/ns/iana/media-types/application/pdf#Resource" ]`
      */
-    const __getObjectValues = (uri: string, keyName: string | null = null, store: Store | null = null): string[] => {
-        if (!store){
+    const __getObjectValues = (uri: string, keyName: string | null = null, parsedN3: ParsedN3 | null = null): string[] => {
+        if (!parsedN3){
             return [];
         }
 
-        return store.getObjects(
+        return parsedN3.store.getObjects(
             uri, keyName ?? null, null
             ).map(a => a.value);
     };
@@ -124,10 +133,10 @@ export const useOrganisationStore = () => {
      * @param uri the identifier URL like "https://sme.solid.aifb.kit.edu/shapetrees/d34a5437-fb1c-42dc-9338-79ab9f9ac849"
      * @returns Store object if URI is valid, otherwise null.
      */
-    const __requestStore = async (uri: string): Promise<Store | null> => {
+    const __requestStore = async (uri: string): Promise<ParsedN3 | null> => {
         try {
             const rawRdf = (await getResource(uri, session).then(({data}) => data));
-            return (await parseToN3(rawRdf, uri)).store;
+            return await parseToN3(rawRdf, uri);
         } catch (error: unknown) {
             console.error("useOrganisationStore [ERR]: Requesting URI or Parsing Store failed" , { error, uri });
             return null;
