@@ -29,13 +29,23 @@ const { isLoggedIn } = useIsLoggedIn();
 const { session, restoreSession } = useSolidSession();
 const { memberOf } = useSolidProfile()
 
-const nothing = useOrganisationStore();
+const { registryExists, registrationExists, uploadFile } = useOrganisationStore();
 
 // re-use Solid session
 restoreSession();
 
-function fileChanged(event: Event): void {
-  console.log('fileChanged', event);
+async function fileChanged(event: Event): Promise<void> {
+  const input = (event.target as HTMLInputElement);
+  console.log('fileChanged', input.files);
+  const registry = prompt("RegistryName") ?? 'my-default-registry';
+  const registration = prompt("RegistrationName") ?? 'my-default-registration';
+
+  if (input.files && input.files.length) {
+    await Promise.all(Array.from(input.files)
+    .map(file => uploadFile(file, registry, registration)));
+
+    // toast-message
+  }
 }
 </script>
 

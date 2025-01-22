@@ -137,7 +137,7 @@ export const createDataRegistration = async (registryUri: string, registryName: 
  * @returns 
  */
 export const createNamedDataInstance = async (registrationUri: string, dataInstanceName: string, body: any, mimeType: string, session: Session) => {
-  const uri = `${registrationUri}${dataInstanceName}`;
+  const uri = `${registrationUri}/${dataInstanceName}`;
   const response = await session.authFetch({
     url: uri,
     method: "PUT",

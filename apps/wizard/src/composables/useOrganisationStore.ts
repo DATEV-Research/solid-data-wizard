@@ -1,4 +1,4 @@
-import { uriExists, requestStore, getFirstObjectValue } from "@/utils/solid-helper";
+import { uriExists, requestStore, getFirstObjectValue, createNamedDataInstance } from "@/utils/solid-helper";
 import {
   useIsLoggedIn,
   useSolidProfile,
@@ -9,7 +9,7 @@ import {
   SPACE,
 } from "@datev-research/mandat-shared-solid-requests";
 import { Writer, DataFactory, NamedNode } from "n3";
-import { ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 
 /**
  * TODOs
@@ -19,10 +19,10 @@ import { ref, watch } from "vue";
  * - validate given names using a regex
  * - ☑️ get data registry by URI and check if it exists, sample https://sme.solid.aifb.kit.edu/dataregistry
  *   - ☑️ if it exists, skip creating it
- *   - if it does not exist: create data registry for given name using n3.Writer
+ *   - ☑️ if it does not exist: create data registry for given name using n3.Writer
  * - ☑️ get data registration by URI and check if it exists, sample https://sme.solid.aifb.kit.edu/dataregistry/dataregistrations
  *   - ☑️ if it exists: throw an error,
- *   - if it does not exist: create data registration for given name using n3.Writer
+ *   - ☑️ if it does not exist: create data registration for given name using n3.Writer
  *
  * - add upload file button for the user
  * - add upload mechanism using the data registry & data registration path.
@@ -53,17 +53,17 @@ export const useOrganisationStore = () => {
   const { session } = useSolidSession();
 
   const organisationStore = ref<ParsedN3 | null>(null);
+  const organisationStorageUri = computed<string>(() => getFirstObjectValue(
+    memberOf.value,
+    SPACE("storage"),
+    organisationStore.value
+  ));
 
   /**
    * internal initialisation of the `organisationStore`.
    */
   const __initiate = async () => {
     organisationStore.value = await requestStore(memberOf.value, session);
-    const organisationStorageUri = getFirstObjectValue(
-      memberOf.value,
-      SPACE("storage"),
-      organisationStore.value
-    );
 
     /* Sample how to create registry, registration and data instances:
     const { uri: registryUri } = await createDataRegistry(organisationStorageUri, "myDataRegistry", session);
@@ -88,5 +88,19 @@ export const useOrganisationStore = () => {
     { immediate: true }
   );
 
-  return {};
+  return {
+    // storageUri: organisationStorageUri,
+
+    registryExists: (registryName: string) => uriExists(`${organisationStorageUri.value}${registryName}`, session),
+    registrationExists: (registryName: string, registrationName: string) => uriExists(`${organisationStorageUri.value}${registryName}/${registrationName}`, session),
+    
+    uploadFile: (file: File, registryName: string, registrationName: string) => createNamedDataInstance(
+        `${organisationStorageUri.value}${registryName}/${registrationName}`,
+        file.name,
+        file,
+        file.type,
+        session
+    ),
+
+  };
 };
