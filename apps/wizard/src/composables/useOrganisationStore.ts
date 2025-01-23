@@ -1,4 +1,4 @@
-import { uriExists, requestStore, getFirstObjectValue, createNamedDataInstance } from "@/utils/solid-helper";
+import { uriExists, requestStore, getFirstObjectValue, createNamedDataInstance, createDataRegistry, verifyDataRegistry, createDataRegistration, verifyDataRegistration } from "@/utils/solid-helper";
 import {
   useIsLoggedIn,
   useSolidProfile,
@@ -24,28 +24,12 @@ import { computed, ref, watch } from "vue";
  *   - ☑️ if it exists: throw an error,
  *   - ☑️ if it does not exist: create data registration for given name using n3.Writer
  *
- * - add upload file button for the user
- * - add upload mechanism using the data registry & data registration path.
- * - test if it is using the right mime-types and so on.
+ * - ☑️ add upload file button for the user
+ * - ☑️ add upload mechanism using the data registry & data registration path.
+ * - ☑️ test if it is using the right mime-types and so on.
  * - handle errors
  * - write tests
  */
-
-/** Testing n3-writer *
-const { namedNode, literal, quad } = DataFactory;
-const writer = new Writer({
-  format: "text/turtle",
-  prefixes: { c: 'http://example.org/cartoons#' },
-});
-writer.addQuad(
-  quad(
-    namedNode('http://example.org/cartoons#Tom'),
-    namedNode('http://example.org/cartoons#name'),
-    literal('Tom')                                
-  )
-);
-writer.end((error, result) => console.log(result));
-/** */
 
 export const useOrganisationStore = () => {
   const { isLoggedIn } = useIsLoggedIn();
@@ -64,14 +48,6 @@ export const useOrganisationStore = () => {
    */
   const __initiate = async () => {
     organisationStore.value = await requestStore(memberOf.value, session);
-
-    /* Sample how to create registry, registration and data instances:
-    const { uri: registryUri } = await createDataRegistry(organisationStorageUri, "myDataRegistry", session);
-    const { uri: registrationUri } = await createDataRegistration(registryUri, 'anotherName', session);
-    const result1 = await createNamedDataInstance(registrationUri, 'another-name', '["some-data"]', "application/json", session)
-    const result2 = await createDataInstance(registrationUri, '["some-more-data"]', "application/json", session)
-    console.log('DATA INSTANCES', result1, result2);
-    /* */
   };
 
   /**
@@ -91,8 +67,21 @@ export const useOrganisationStore = () => {
   return {
     // storageUri: organisationStorageUri,
 
-    registryExists: (registryName: string) => uriExists(`${organisationStorageUri.value}${registryName}`, session),
-    registrationExists: (registryName: string, registrationName: string) => uriExists(`${organisationStorageUri.value}${registryName}/${registrationName}`, session),
+    registryExists: (registryName: string) => uriExists(`${organisationStorageUri.value}${registryName}/`, session),
+    registrationExists: (registryName: string, registrationName: string) => uriExists(`${organisationStorageUri.value}${registryName}/${registrationName}/`, session),
+
+    createRegistry: async (registryName: string) => {
+      const { rdf: registryRdf, uri: registryUri } = await createDataRegistry(organisationStorageUri.value, registryName, undefined, session);
+      if (!(await verifyDataRegistry(registryUri, session))) {
+        throw new Error("UnexpectedError: registry Type is not set correctly, after creating it.");
+      }
+    },
+    createRegistration: async (registryName: string, registrationName: string) => {
+      const { rdf: registrationRdf, uri: registrationUri } = await createDataRegistration(`${organisationStorageUri.value}${registryName}/`, registrationName, session);
+      if (!(await verifyDataRegistration(registrationUri, session))) {
+        throw new Error("UnexpectedError: registration Type is not set correctly, after creating it.");
+      }
+    },
     
     uploadFile: (file: File, registryName: string, registrationName: string) => createNamedDataInstance(
         `${organisationStorageUri.value}${registryName}/${registrationName}`,

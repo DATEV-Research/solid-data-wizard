@@ -29,7 +29,7 @@ const { isLoggedIn } = useIsLoggedIn();
 const { session, restoreSession } = useSolidSession();
 const { memberOf } = useSolidProfile()
 
-const { registryExists, registrationExists, uploadFile } = useOrganisationStore();
+const { createRegistry, createRegistration, registryExists, registrationExists, uploadFile } = useOrganisationStore();
 
 // re-use Solid session
 restoreSession();
@@ -37,12 +37,18 @@ restoreSession();
 async function fileChanged(event: Event): Promise<void> {
   const input = (event.target as HTMLInputElement);
   console.log('fileChanged', input.files);
+  
   const registry = prompt("RegistryName") ?? 'my-default-registry';
+  if (!(await registryExists(registry))) { await createRegistry(registry); }
+  
   const registration = prompt("RegistrationName") ?? 'my-default-registration';
+  if (await registrationExists(registry, registration)) { throw new Error("Must not use the same DataRegistration!") }
+  else { await createRegistration(registry, registration); }
 
   if (input.files && input.files.length) {
-    await Promise.all(Array.from(input.files)
-    .map(file => uploadFile(file, registry, registration)));
+    await Promise.all(
+      Array.from(input.files)
+        .map(file => uploadFile(file, registry, registration)));
 
     // toast-message
   }

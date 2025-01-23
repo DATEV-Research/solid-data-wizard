@@ -1,5 +1,5 @@
 import { Session } from '@datev-research/mandat-shared-solid-oidc';
-import { getResource, INTEROP, LDP, ParsedN3, parseToN3 } from "@datev-research/mandat-shared-solid-requests";
+import { DCT, getResource, INTEROP, LDP, ParsedN3, parseToN3, RDF, XSD } from "@datev-research/mandat-shared-solid-requests";
 import { DataFactory, Writer } from "n3";
 
 const { quad, blankNode, namedNode, literal, variable, defaultGraph } = DataFactory;
@@ -34,10 +34,7 @@ const { quad, blankNode, namedNode, literal, variable, defaultGraph } = DataFact
  * @param name sample: "access-inbox"
  */
 export const uriExists = async (uri: string, session: Session) => {
-  const checkUri = `${uri}/`;
-  const store = await requestStore(
-    checkUri.replace(new RegExp("//", "g"), "/"), session
-  );
+  const store = await requestStore(uri, session);
   return store !== null;
 };
 
@@ -74,21 +71,55 @@ export const getFirstObjectValue = (
  * @param session 
  * @returns 
  */
-export const createDataRegistry = async (organisationStorageUri: string, registryName: string, session: Session) => {
-    const { rdf: registryRdf, uri: registryUri } = await __createDataRegistryRdf(organisationStorageUri, registryName);
+export const createDataRegistry = async (organisationStorageUri: string, registryName: string, registrationName: string | undefined, session: Session) => {
+    const { rdf: registryRdf, uri: registryUri } = await __createDataRegistryRdf(organisationStorageUri, registryName, registrationName);
 
     if (!(await uriExists(registryUri, session))) {
+
+        // 1) Create a simple Container
+
         const response = await session.authFetch({
           url: registryUri,
           method: "PUT",
           headers: {
             "Content-Type": "text/turtle",
+            
+            // NOTE this somehow does not really work, because the server cannot identify it as a container.
+            // "Link": `<${INTEROP("DataRegistry")}>; rel="type"`,
+
+            // NOTE This will cause the solid-server to IGNORE the whole RDF
+            "Link": `<${LDP("BasicContainer")}>; rel="type"`,
+
+            // "Slug": registryName,
           },
           data: registryRdf,
         });
 
+        if (registryUri !== response.headers['location']) {
+          throw new Error(`createDataRegistry [WARN]: URIs do not match: ${registryUri}, ${response.headers['location']}`);
+        }
+
+        // 2) Patch type in ".meta" of the container to be DataRegistry, too.
+        const patchBody = `
+@prefix solid:<http://www.w3.org/ns/solid/terms#>.
+@prefix interop:<${INTEROP()}>.
+
+_:rename a solid:InsertDeletePatch;
+    solid:inserts {
+        <${registryUri}> <${DCT("title")}> "${registryName}" .
+        <${registryUri}> <${RDF("type")}> <${INTEROP("DataRegistry")}> .
+    } .`;
+        await session.authFetch({
+          url: registryUri + '.meta',
+          method: "PATCH",
+          headers: {
+            "Content-Type": "text/n3",
+          },
+          data: patchBody
+        });
+
         return {
-          rdf: registryRdf, uri: registryUri, data: response.data
+          rdf: registryRdf, uri: response.headers['location'], data: response.data
         }
       } else {
         return {
@@ -98,33 +129,117 @@ export const createDataRegistry = async (organisationStorageUri: string, registr
 };
 
 /**
- * creates a new data-registration if it does not exist already.
+ * Verifies if the given URI is a DataRegistry by checking the entity's type.
  * @param registryUri 
- * @param registryName 
  * @param session 
  * @returns 
  */
-export const createDataRegistration = async (registryUri: string, registryName: string, session: Session) => {
-  const { rdf: registrationRdf, uri: registrationUri } = await __createDataRegistrationRdf(registryUri, registryName);
+export const verifyDataRegistry = async (registryUri: string, session: Session) => {
+  const parsedN3 = await requestStore(registryUri, session);
+    if (parsedN3) {
+      const storeTypes = parsedN3.store.getObjects(null, RDF("type"), null).map(({id}) => id);
+      const hasDataRegistry = storeTypes.some(id => id.includes(INTEROP("DataRegistry")));
+      return hasDataRegistry;
+    }
+    return false;
+}
+
+/**
+ * creates a new data-registration if it does not exist already.
+ * @param registryUri 
+ * @param registrationName 
+ * @param session 
+ * @returns 
+ */
+export const createDataRegistration = async (registryUri: string, registrationName: string, session: Session) => {
+  const { rdf: registrationRdf, uri: registrationUri } = await __createDataRegistrationRdf(registryUri, registrationName);
 
     if (!(await uriExists(registrationUri, session))) {
+      
+      // 1) Create Basic Container
       const response = await session.authFetch({
         url: registrationUri,
         method: "PUT",
         headers: {
           "Content-Type": "text/turtle",
-          // Link: `<${LDP("Container")}>; rel="type", <${LDP("BasicContainer")}>; rel="type", <${LDP("Resource")}>; rel="type", <${LDP("DataRegistration")}>; rel="type"`,
+            
+          // NOTE this somehow does not really work, because the server cannot identify it as a container.
+          // "Link": `<${INTEROP("DataRegistration")}>; rel="type"`,
+
+          // NOTE This will cause the solid-server to IGNORE the whole RDF
+          "Link": `<${LDP("BasicContainer")}>; rel="type"`,
+
+          // "Slug": registrationName,
         },
         data: registrationRdf,
       });
+
+      if (registrationUri !== response.headers['location']) {
+        throw new Error(`createDataRegistry [WARN]: URIs do not match: ${registrationUri}, ${response.headers['location']}`);
+      }
+
+      // 2) Patch type in ".meta" of the container to be DataRegistry, too.
+      let patchBody = `
+@prefix solid:<http://www.w3.org/ns/solid/terms#>.
+@prefix interop:<${INTEROP()}>.
+
+_:rename a solid:InsertDeletePatch;
+  solid:inserts {
+      <${registrationUri}> <${DCT("title")}> "${registrationName}" .
+      <${registrationUri}> <${RDF("type")}> <${INTEROP("DataRegistration")}> .
+  } .`;
+      await session.authFetch({
+        url: registrationUri + '.meta',
+        method: "PATCH",
+        headers: {
+          "Content-Type": "text/n3",
+        },
+        data: patchBody
+      });
+      
+      // 3) Patch registry for "hasDataRegistration" predicate
+      patchBody = `
+@prefix solid:<http://www.w3.org/ns/solid/terms#>.
+@prefix interop:<${INTEROP()}>.
+
+_:rename a solid:InsertDeletePatch;
+  solid:inserts {
+      <${registryUri}> <${INTEROP("hasDataRegistration")}> <${registrationName}/> .
+  } .`;
+   
+      await session.authFetch({
+        url: registryUri + '.meta',
+        method: "PATCH",
+        headers: {
+          "Content-Type": "text/n3",
+        },
+        data: patchBody
+      });
+
       return {
-        rdf: registrationUri, uri: registryUri, data: response.data
+        rdf: registrationUri, uri: response.headers['location'], data: response.data
       }
     } else {
       return {
         rdf: registrationUri, uri: registryUri, data: null
       }
     }
+}
+
+/**
+ * Verifies if the given URI is a DataRegistry by checking the entity's type.
+ * @param registrationUri 
+ * @param session 
+ * @returns 
+ */
+export const verifyDataRegistration = async (registrationUri: string, session: Session) => {
+  const parsedN3 = await requestStore(registrationUri, session);
+    if (parsedN3) {
+      const storeTypes = parsedN3.store.getObjects(null, RDF("type"), null).map(({id}) => id);
+      const hasDataRegistration = storeTypes.some(id => id.includes(INTEROP("DataRegistration")));
+      return hasDataRegistration;
+    }
+    return false;
 }
 
 /**
@@ -176,53 +291,143 @@ export const createDataInstance = async (registrationUri: string, body: any, mim
    * Create RDF for a new Data Registry
    * @param storageUri
    * @param dataRegistryName
+   * @param dataRegistrationName
    * @returns
    */
 const __createDataRegistryRdf = async (
     storageUri: string,
-    dataRegistryName: string
+    dataRegistryName: string,
+    dataRegistrationName?: string
   ): Promise<{ uri: string; rdf: string }> => {
     return new Promise((resolve, reject) => {
+      const uri = `${storageUri}${dataRegistryName}/`;
+      const now = new Date();
+      const nowUtcString = now.toISOString();
+      const nowTimestampString = Math.floor(now.getTime() / 1000);
+
       const writer = new Writer({
         format: "text/turtle",
         prefixes: {
           interop: INTEROP(),
           ldp: LDP(),
+          dc: DCT(),
+          xsd: XSD(),
         },
       });
-      const uri = `${storageUri}${dataRegistryName}/`;
 
-      writer.addQuad(
-        namedNode(uri),
-        namedNode("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"),
-        namedNode(INTEROP("DataRegistry")),
-        defaultGraph()
-      );
-      writer.addQuad(
-        namedNode(uri),
-        namedNode("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"),
-        namedNode(INTEROP("Container")),
-        defaultGraph()
-      );
-      writer.addQuad(
-        namedNode(uri),
-        namedNode("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"),
-        namedNode(INTEROP("BasicContainer")),
-        defaultGraph()
-      );
-      writer.addQuad(
-        namedNode(uri),
-        namedNode("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"),
-        namedNode(INTEROP("Resource")),
-        defaultGraph()
-      );
-      writer.addQuad(
-        namedNode(uri),
-        namedNode(INTEROP("hasDataRegistration")),
-        blankNode(),
-        defaultGraph()
+      /*
+       * These are quads that should be set actually, but the server won't use this RDF when
+       * the Headers contain a "Link" with a different type than "DataRegistry"
+       */
+      writer.addQuads(
+        [
+          // define own types
+          quad(
+            namedNode(uri),
+            namedNode(RDF("type")),
+            namedNode(INTEROP("DataRegistry")),
+            defaultGraph()
+          ),
+          quad(
+            namedNode(uri),
+            namedNode(RDF("type")),
+            namedNode(LDP("Container")),
+            defaultGraph()
+          ),
+          quad(
+            namedNode(uri),
+            namedNode(RDF("type")),
+            namedNode(LDP("BasicContainer")),
+            defaultGraph()
+          ),
+          quad(
+            namedNode(uri),
+            namedNode(RDF("type")),
+            namedNode(LDP("Resource")),
+            defaultGraph()
+          ),
+          quad(
+            namedNode(uri),
+            namedNode(DCT("modified")),
+            literal(nowUtcString/*, "xsd:dateTime"*/),
+            defaultGraph()
+          ),
+          quad(
+            namedNode(uri),
+            namedNode("http://www.w3.org/ns/posix/stat#mtime"),
+            literal(nowTimestampString),
+            defaultGraph()
+          ),
+          quad(
+            namedNode(uri),
+            namedNode(DCT("title")),
+            literal(dataRegistryName),
+            defaultGraph()
+          ),
+        ]
       );
 
+      if (dataRegistrationName) {
+        writer.addQuads([
+          // define relations
+          quad(
+            namedNode(uri),
+            namedNode(INTEROP("hasDataRegistration")),
+            namedNode(dataRegistrationName),
+            defaultGraph()
+          ),
+          quad(
+            namedNode(uri),
+            namedNode(LDP("contains")),
+            namedNode(dataRegistrationName),
+            defaultGraph()
+          ),
+          // define data-registration
+          quad(
+            namedNode(dataRegistrationName),
+            namedNode(RDF("type")),
+            namedNode(INTEROP("DataRegistration")),
+            defaultGraph()
+          ),
+          quad(
+            namedNode(dataRegistrationName),
+            namedNode(RDF("type")),
+            namedNode(LDP("Container")),
+            defaultGraph()
+          ),
+          quad(
+            namedNode(dataRegistrationName),
+            namedNode(RDF("type")),
+            namedNode(LDP("BasicContainer")),
+            defaultGraph()
+          ),
+          quad(
+            namedNode(dataRegistrationName),
+            namedNode(RDF("type")),
+            namedNode(LDP("Resource")),
+            defaultGraph()
+          ),
+          quad(
+            namedNode(dataRegistrationName),
+            namedNode(DCT("modified")),
+            literal(nowUtcString/*, "xsd:dateTime"*/),
+            defaultGraph()
+          ),
+          quad(
+            namedNode(dataRegistrationName),
+            namedNode("http://www.w3.org/ns/posix/stat#mtime"),
+            literal(nowTimestampString),
+            defaultGraph()
+          ),
+          quad(
+            namedNode(dataRegistrationName),
+            namedNode(DCT("title")),
+            literal(dataRegistryName),
+            defaultGraph()
+          ),
+        ]);
+      }
+      
       writer.end((error, resultRdf) => {
         if (error) {
           reject(error);
@@ -254,36 +459,47 @@ const __createDataRegistryRdf = async (
       });
       const uri = `${dataRegistryUri}${dataRegistrationName}/`;
 
-      writer.addQuad(
-        namedNode(uri),
-        namedNode("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"),
-        namedNode(INTEROP("DataRegistration")),
-        defaultGraph()
-      );
-      writer.addQuad(
-        namedNode(uri),
-        namedNode("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"),
-        namedNode(INTEROP("Container")),
-        defaultGraph()
-      );
-      writer.addQuad(
-        namedNode(uri),
-        namedNode("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"),
-        namedNode(INTEROP("BasicContainer")),
-        defaultGraph()
-      );
-      writer.addQuad(
-        namedNode(uri),
-        namedNode("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"),
-        namedNode(INTEROP("Resource")),
-        defaultGraph()
-      );
+      writer.addQuads([
+        quad(
+          namedNode(uri),
+          namedNode(RDF("type")),
+          namedNode(INTEROP("DataRegistration")),
+          defaultGraph()
+        ),
+        quad(
+          namedNode(uri),
+          namedNode(RDF("type")),
+          namedNode(LDP("Container")),
+          defaultGraph()
+        ),
+        quad(
+          namedNode(uri),
+          namedNode(RDF("type")),
+          namedNode(LDP("BasicContainer")),
+          defaultGraph()
+        ),
+        quad(
+          namedNode(uri),
+          namedNode(RDF("type")),
+          namedNode(LDP("Resource")),
+          defaultGraph()
+        ),
+        quad(
+          namedNode(uri),
+          namedNode(DCT("title")),
+          literal(dataRegistrationName),
+          defaultGraph()
+        ),
+      ]);
+
+      /** *
       writer.addQuad(
         namedNode(uri),
         namedNode(INTEROP("registeredShapeTree")),
         blankNode(),
         defaultGraph()
       );
+      /** */
 
       writer.end((error, resultRdf) => {
         if (error) {
@@ -291,8 +507,6 @@ const __createDataRegistryRdf = async (
         } else {
           resolve({ rdf: resultRdf.replace(new RegExp(uri, "g"), ""), uri });
         }
-        console.debug("useOrganisationStore [DEBUG]: CREATE RDF:", resultRdf);
-        // putResource(newRessourceUri, resultRdf, session);
       });
     });
   };
@@ -337,7 +551,7 @@ const __createDataRegistryRdf = async (
 
   /**
    * @param uri identifier or just a Container URL, sample "https://sme.solid.aifb.kit.edu/shapetrees/d34a5437-fb1c-42dc-9338-79ab9f9ac849"
-   * @param keyName (optional) predicate or keyName, sample "http://www.w3.org/1999/02/22-rdf-syntax-ns#type"
+   * @param keyName (optional) predicate or keyName, sample RDF("type")
    * @param parsedN3 parsedN3 where to retrieve the information from. Can be `null`, but then the result is also `null`.
    * @returns sample `[ "http://www.w3.org/ns/ldp#Resource", "http://www.w3.org/ns/iana/media-types/application/pdf#Resource" ]`
    */
