@@ -1,0 +1,6 @@
+@prefix st: <http://www.w3.org/ns/shapetrees#> .
+
+<#PDFBinaryShapeTree>
+    a st:ShapeTree ;
+	st:expectsType	st:Resource ;
+	st:shape      	<https://sme.solid.aifb.kit.edu/shapetrees/pdfBinary.shape#PDFBinaryShape> .

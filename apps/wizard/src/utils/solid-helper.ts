@@ -1,5 +1,6 @@
 import { Session } from '@datev-research/mandat-shared-solid-oidc';
-import { DCT, getResource, INTEROP, LDP, ParsedN3, parseToN3, RDF, XSD } from "@datev-research/mandat-shared-solid-requests";
+import { DCT, getResource, INTEROP, LDP, ParsedN3, parseToN3, putResource, RDF, XSD } from "@datev-research/mandat-shared-solid-requests";
+import axios from 'axios';
 import { DataFactory, Writer } from "n3";
 
 const { quad, blankNode, namedNode, literal, variable, defaultGraph } = DataFactory;
@@ -62,6 +63,66 @@ export const getFirstObjectValue = (
     return "";
   }
   return firstValue;
+};
+
+/**
+ * Adds a shapetree definition to the given DataRegistration URI.
+ * @param registrationUri data registration URI that should define the new shapeTree
+ * @param registeredByUri the registeredBy URI (memberOf URI to /card#me)
+ * @param shapeUri URI of the shape that should be used
+ * @param shapeTreeUri URI of the shapeTree definition that should be used
+ * @param session a valid session instance
+ */
+export const applyShapeTree = async (
+  registrationUri: string,
+  registeredByUri: string,
+  shapeUri: string,
+  shapeTreeUri: string,
+  session: Session,
+) => {
+  const registrationStore = await requestStore(registrationUri, session);
+  
+  if (!registrationStore) {
+    throw new Error("UnexpectedRegistrationURI: Not found or invalid");
+  }
+
+  if (!(await uriExists(shapeUri, session))) {
+    const response = await axios({ url: 'shapes/pdfBinary.shape', method: "get" });
+    await putResource(shapeUri, response.data, session);
+  }
+  if (!(await uriExists(shapeTreeUri, session))) {
+    const response = await axios({ url: 'shapes/pdfBinary.tree', method: "get" });
+    await putResource(shapeTreeUri, response.data, session);
+  }
+
+  const hasShapeTreeMetaData = getFirstObjectValue(registrationUri, INTEROP("registeredShapeTree"), registrationStore);
+
+  if (!hasShapeTreeMetaData) {
+    // TODO Change DataRegistration Meta Data to use ShapeTree accordingly.
+    // Patch DataRegistration
+    const nowIsoDate = new Date().toISOString();
+    const patchBody = `
+@prefix solid:<http://www.w3.org/ns/solid/terms#>.
+@prefix interop:<${INTEROP()}>.
+@prefix xsd:<${XSD()}>.
+
+_:rename a solid:InsertDeletePatch;
+    solid:inserts {
+        <${registrationUri}> <${INTEROP("registeredShapeTree")}> <${shapeTreeUri}> .
+        <${registrationUri}> <${INTEROP("registeredBy")}> <${registeredByUri}> .
+        <${registrationUri}> <${INTEROP("registeredWith")}> <#blank> .
+        <${registrationUri}> <${INTEROP("registeredAt")}> "${nowIsoDate}"^^xsd:dateTime .
+        <${registrationUri}> <${INTEROP("updatedAt")}> "${nowIsoDate}"^^xsd:dateTime .
+    } .`;
+        await session.authFetch({
+          url: registrationUri + '.meta',
+          method: "PATCH",
+          headers: {
+            "Content-Type": "text/n3",
+          },
+          data: patchBody
+        });
+  }
 };
 
 /**
@@ -175,7 +236,7 @@ export const createDataRegistration = async (registryUri: string, registrationNa
       });
 
       if (registrationUri !== response.headers['location']) {
-        throw new Error(`createDataRegistry [WARN]: URIs do not match: ${registrationUri}, ${response.headers['location']}`);
+        throw new Error(`createDataRegistration [WARN]: URIs do not match: ${registrationUri}, ${response.headers['location']}`);
       }
 
       // 2) Patch type in ".meta" of the container to be DataRegistry, too.
