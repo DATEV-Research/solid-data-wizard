@@ -1,4 +1,4 @@
-import { uriExists, requestStore, getFirstObjectValue, createNamedDataInstance, createDataRegistry, verifyDataRegistry, createDataRegistration, verifyDataRegistration } from "@/utils/solid-helper";
+import { uriExists, requestStore, getFirstObjectValue, createNamedDataInstance, createDataRegistry, verifyDataRegistry, createDataRegistration, verifyDataRegistration, applyShapeTree } from "@/utils/solid-helper";
 import {
   useIsLoggedIn,
   useSolidProfile,
@@ -8,7 +8,6 @@ import {
   ParsedN3,
   SPACE,
 } from "@datev-research/mandat-shared-solid-requests";
-import { Writer, DataFactory, NamedNode } from "n3";
 import { computed, ref, watch } from "vue";
 
 /**
@@ -30,6 +29,9 @@ import { computed, ref, watch } from "vue";
  * - handle errors
  * - write tests
  */
+
+const SOLD_PDF_BINARY_SHAPE_URI = "https://sme.solid.aifb.kit.edu/shapetrees/pdfBinary.shape"
+const SOLD_PDF_BINARY_SHAPETREE_URI = "https://sme.solid.aifb.kit.edu/shapetrees/pdfBinary.tree"
 
 export const useOrganisationStore = () => {
   const { isLoggedIn } = useIsLoggedIn();
@@ -81,6 +83,13 @@ export const useOrganisationStore = () => {
       if (!(await verifyDataRegistration(registrationUri, session))) {
         throw new Error("UnexpectedError: registration Type is not set correctly, after creating it.");
       }
+      applyShapeTree(
+        registrationUri,
+        memberOf.value,
+        SOLD_PDF_BINARY_SHAPE_URI,
+        SOLD_PDF_BINARY_SHAPETREE_URI,
+        session,
+      );
     },
     
     uploadFile: (file: File, registryName: string, registrationName: string) => createNamedDataInstance(
