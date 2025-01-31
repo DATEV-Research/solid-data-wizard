@@ -26,9 +26,9 @@
             </div>
 
             <div class="col-12 ">
-              <Button class="step-button mr-2" severity="secondary" @click="resetData"
+              <Button class="mr-2" severity="secondary" @click="resetData"
               >Cancel</Button>
-              <Button class="step-button ml-2" @click="addRegistrationName"
+              <Button class="ml-2" @click="addRegistrationName"
               >Submit</Button>
             </div>
 
@@ -44,13 +44,11 @@
     position="bottom-right"
     :breakpoints="{ '420px': { width: '100%', right: '0', left: '0' } }"
   />
-
-  <ConfirmDialog />
 </template>
 
 <script lang="ts" setup>
 import {DacklHeaderBar, UnauthenticatedCard, DacklTextInput} from "@datev-research/mandat-shared-components";
-import {useIsLoggedIn, useSolidProfile, useSolidSession} from "@datev-research/mandat-shared-composables";
+import {useIsLoggedIn, useSolidSession} from "@datev-research/mandat-shared-composables";
 import Toast from "primevue/toast";
 import { useOrganisationStore } from "./composables/useOrganisationStore";
 import {ref} from "vue";
@@ -62,13 +60,12 @@ const appLogo = require('@/assets/logo.svg');
 const { isLoggedIn } = useIsLoggedIn();
 const { session, restoreSession } = useSolidSession();
 
-const { createRegistry, createRegistration, registryExists, registrationExists, uploadFile } = useOrganisationStore();
+const { createRegistry, createRegistration, registryExists, registrationExists, uploadFile, updateProfileRegistry } = useOrganisationStore();
 
 // re-use Solid session
 restoreSession();
 const registryName = ref<string>('');
 const registrationName = ref<string>('');
-const step = ref<number>(0);
 const invalidRegistration = ref<number>(false);
 const invalidRegistry = ref<number>(false);
 const registrationNameExists = ref<number>(false);
@@ -90,15 +87,15 @@ function resetData(){
 }
 async function addRegistrationName(): Promise<void>{
   resetErrorMessage();
-  const isRegistrationExists = await registrationExists(registryName.value,registrationName.value);
+  const registry = registryName.value;
+  const registration = registrationName.value;
+  const isRegistrationExists = await registrationExists(registry,registration);
   const input = (fileInput.value as HTMLInputElement);
 
-  if(!validateInput(registryName.value)){
-    step.value =1;
+  if(!validateInput(registry)){
     invalidRegistry.value=true;
   }
-  else if(!validateInput(registrationName.value)){
-    step.value =1;
+  else if(!validateInput(registration)){
     invalidRegistration.value=true;
   }
   else if (!input){
@@ -108,20 +105,30 @@ async function addRegistrationName(): Promise<void>{
     registrationNameExists.value=true;
   }
   else {
-    if (!(await registryExists(registryName.value))) { await createRegistry(registryName.value); }
-    await createRegistration(registryName.value, registrationName.value);
+    if (!(await registryExists(registry))) { await createRegistry(registry);await updateProfileRegistry(registry); }
+    await createRegistration(registry, registration);
 
     if (input.files && input.files.length) {
-      await Promise.all(
-          Array.from(input.files)
-              .map(file => uploadFile(file, registryName.value, registrationName.value)));
+      try{
+        await Promise.all(
+            Array.from(input.files)
+                .map(file => uploadFile(file, registry, registration)));
 
-      toast.add({
-        severity: "success",
-        summary: "File successfully uploaded!",
-        life: 5000,
-      });
-      resetData();
+        toast.add({
+          severity: "success",
+          summary: "File successfully uploaded!",
+          life: 5000,
+        });
+        resetData();
+      }
+      catch(err){
+        toast.add({
+          severity: "error",
+          summary: "File is not uploaded",
+          life: 5000,
+        });
+      }
+
     }
   }
 
@@ -135,26 +142,6 @@ function fileSelected(event: Event){
   }
   else{
     fileNotSelected.value = true;
-  }
-}
-
-async function fileChanged(event: Event): Promise<void> {
-  const input = (event.target as HTMLInputElement);
-  console.log('fileChanged**', input.files);
-  
-  const registry = prompt("RegistryName") ?? 'my-default-registry';
-  if (!(await registryExists(registry))) { await createRegistry(registry); }
-  
-  const registration = prompt("RegistrationName") ?? 'my-default-registration';
-  if (await registrationExists(registry, registration)) { throw new Error("Must not use the same DataRegistration!") }
-  else { await createRegistration(registry, registration); }
-
-  if (input.files && input.files.length) {
-    await Promise.all(
-      Array.from(input.files)
-        .map(file => uploadFile(file, registry, registration)));
-
-    // toast-message
   }
 }
 </script>

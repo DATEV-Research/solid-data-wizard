@@ -128,7 +128,8 @@ _:rename a solid:InsertDeletePatch;
 /**
  * creates a new data-registry if it does not exist already.
  * @param organisationStorageUri 
- * @param registryName 
+ * @param registryName
+ * @param registrationName
  * @param session 
  * @returns 
  */
@@ -188,7 +189,25 @@ _:rename a solid:InsertDeletePatch;
         };
       }
 };
+export const updateProfileRegistryData = async(profileRegistryUri:string,registryName:string,session:Session)=> {
 
+  const patchBody = `
+@prefix solid:<http://www.w3.org/ns/solid/terms#>.
+@prefix interop:<${INTEROP()}>.
+
+_:rename a solid:InsertDeletePatch;
+    solid:inserts {
+      <#set>  <${INTEROP("hasDataRegistry")}> </${registryName}/> .
+    } .`;
+  await session.authFetch({
+    url:  profileRegistryUri,
+    method: "PATCH",
+    headers: {
+      "Content-Type": "text/n3",
+    },
+    data: patchBody
+  });
+}
 /**
  * Verifies if the given URI is a DataRegistry by checking the entity's type.
  * @param registryUri 

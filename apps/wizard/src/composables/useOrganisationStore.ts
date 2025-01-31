@@ -1,4 +1,15 @@
-import { uriExists, requestStore, getFirstObjectValue, createNamedDataInstance, createDataRegistry, verifyDataRegistry, createDataRegistration, verifyDataRegistration, applyShapeTree } from "@/utils/solid-helper";
+import {
+  uriExists,
+  requestStore,
+  getFirstObjectValue,
+  createNamedDataInstance,
+  createDataRegistry,
+  verifyDataRegistry,
+  createDataRegistration,
+  verifyDataRegistration,
+  applyShapeTree,
+  updateProfileRegistryData
+} from "@/utils/solid-helper";
 import {
   useIsLoggedIn,
   useSolidProfile,
@@ -32,6 +43,7 @@ import { computed, ref, watch } from "vue";
 
 const SOLD_PDF_BINARY_SHAPE_URI = "https://sme.solid.aifb.kit.edu/shapetrees/pdfBinary.shape"
 const SOLD_PDF_BINARY_SHAPETREE_URI = "https://sme.solid.aifb.kit.edu/shapetrees/pdfBinary.tree"
+const SOLD_PROFILE_REGISTRY_URI = "https://sme.solid.aifb.kit.edu/profile/registry";
 
 export const useOrganisationStore = () => {
   const { isLoggedIn } = useIsLoggedIn();
@@ -77,6 +89,9 @@ export const useOrganisationStore = () => {
       if (!(await verifyDataRegistry(registryUri, session))) {
         throw new Error("UnexpectedError: registry Type is not set correctly, after creating it.");
       }
+    },
+    updateProfileRegistry: async (registryName: string) => {
+      await updateProfileRegistryData(`${SOLD_PROFILE_REGISTRY_URI}`,registryName, session);
     },
     createRegistration: async (registryName: string, registrationName: string) => {
       const { rdf: registrationRdf, uri: registrationUri } = await createDataRegistration(`${organisationStorageUri.value}${registryName}/`, registrationName, session);
