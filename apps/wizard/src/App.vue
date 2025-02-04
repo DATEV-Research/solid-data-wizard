@@ -8,6 +8,7 @@
           <div class="grid pt-0">
             <div class="col-12">
               <h1>Solid Data Wizard</h1>
+              <testFile></testFile>
             </div>
             <div class="col-12">
               <DacklTextInput type="string" :disabled="false" class="w-full md:w-auto mt-2" label="Enter Registry Name" v-model="registryName"/>
@@ -36,7 +37,7 @@
         </div>
       </template>
     </Card>
-
+    <PodTree :nodes="podNodes" @update:selected-keys="updateSelectedKeys" ></PodTree>
   </div>
   <UnauthenticatedCard v-else />
   
@@ -51,29 +52,58 @@ import {DacklHeaderBar, UnauthenticatedCard, DacklTextInput} from "@datev-resear
 import {useIsLoggedIn, useSolidSession} from "@datev-research/mandat-shared-composables";
 import Toast from "primevue/toast";
 import { useOrganisationStore } from "./composables/useOrganisationStore";
-import {ref} from "vue";
+import {onMounted, ref} from "vue";
 import { useToast } from "primevue/usetoast";
 import {validateInput} from "@/utils/validateInput";
+import PodTree from "@/components/PodTree.vue";
+import {TreeSelectionKeys} from "primevue/tree";
+import {TreeNode} from "primevue/treenode";
 
 const appLogo = require('@/assets/logo.svg');
 
 const { isLoggedIn } = useIsLoggedIn();
 const { session, restoreSession } = useSolidSession();
 
-const { createRegistry, createRegistration, registryExists, registrationExists, uploadFile, updateProfileRegistry } = useOrganisationStore();
+const { createRegistry, createRegistration, registryExists, registrationExists, uploadFile, updateProfileRegistry, getProfileRegistry } = useOrganisationStore();
 
+getProfileRegistry().then(result=> console.log('ProfileRegistry: ',result));
 // re-use Solid session
 restoreSession();
 const registryName = ref<string>('');
 const registrationName = ref<string>('');
-const invalidRegistration = ref<number>(false);
-const invalidRegistry = ref<number>(false);
-const registrationNameExists = ref<number>(false);
-const fileNotSelected = ref<number>(false);
+const invalidRegistration = ref<boolean>(false);
+const invalidRegistry = ref<boolean>(false);
+const registrationNameExists = ref<boolean>(false);
+const fileNotSelected = ref<boolean>(false);
 const fileInput = ref<HTMLInputElement | null>(null);
+
+const podNodes = ref<TreeNode[]>([
+  {
+    key:'0',
+    data:"registry-uri",
+    label:"Registry",
+    children:[
+      {
+        key:'0-0',
+        data:"registration-uri",
+        label:"Registration",
+        children:[
+          {
+            key:'0-0-0',
+            data:"file-uri",
+            label:"File"
+          }
+        ]
+      }
+    ]
+  }
+]);
 
 const toast = useToast();
 
+function updateSelectedKeys(selectionKeys:TreeSelectionKeys){
+  console.log(selectionKeys);
+}
 function resetErrorMessage(){
   invalidRegistry.value=false;
   invalidRegistration.value=false;

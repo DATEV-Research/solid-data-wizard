@@ -12,7 +12,7 @@ const { quad, blankNode, namedNode, literal, variable, defaultGraph } = DataFact
    */
   export const requestStore = async (uri: string, session: Session): Promise<ParsedN3 | null> => {
     try {
-      const rawRdf = await getResource(uri, session).then(({ data }) => data);
+      const rawRdf = await __getResource(uri, session);
       console.debug(
         "useOrganisationStore [DEBUG]: Parsing raw RDF",
         uri,
@@ -207,6 +207,15 @@ _:rename a solid:InsertDeletePatch;
     },
     data: patchBody
   });
+}
+
+export const getProfileRegistry = async(uri:string, session:Session) => {
+  const store = await requestStore(uri,session);
+  return __getObjectValues(null,INTEROP("hasDataRegistry"),store);
+};
+
+const __getResource = async(uri:string, session:Session)=> {
+  return await getResource(uri, session).then(({ data }) => data);
 }
 /**
  * Verifies if the given URI is a DataRegistry by checking the entity's type.
@@ -636,7 +645,7 @@ const __createDataRegistryRdf = async (
    * @returns sample `[ "http://www.w3.org/ns/ldp#Resource", "http://www.w3.org/ns/iana/media-types/application/pdf#Resource" ]`
    */
   const __getObjectValues = (
-    uri: string,
+    uri: string | null = null,
     keyName: string | null = null,
     parsedN3: ParsedN3 | null = null
   ): string[] => {

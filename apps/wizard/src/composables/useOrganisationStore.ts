@@ -8,7 +8,7 @@ import {
   createDataRegistration,
   verifyDataRegistration,
   applyShapeTree,
-  updateProfileRegistryData
+  updateProfileRegistryData, getProfileRegistry
 } from "@/utils/solid-helper";
 import {
   useIsLoggedIn,
@@ -114,6 +114,7 @@ export const useOrganisationStore = () => {
         file.type,
         session
     ),
+    getProfileRegistry:()=> getProfileRegistry(SOLD_PROFILE_REGISTRY_URI, session)
 
   };
 };
