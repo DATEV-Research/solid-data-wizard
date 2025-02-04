@@ -8,7 +8,6 @@
           <div class="grid pt-0">
             <div class="col-12">
               <h1>Solid Data Wizard</h1>
-              <testFile></testFile>
             </div>
             <div class="col-12">
               <DacklTextInput type="string" :disabled="false" class="w-full md:w-auto mt-2" label="Enter Registry Name" v-model="registryName"/>
@@ -37,7 +36,7 @@
         </div>
       </template>
     </Card>
-    <PodTree :nodes="podNodes" @update:selected-keys="updateSelectedKeys" ></PodTree>
+    <PodTree :nodes="podNodes" @update:selected-keys="updateSelectedKeys" @node-expand="onNodeExpand" ></PodTree>
   </div>
   <UnauthenticatedCard v-else />
   
@@ -64,9 +63,9 @@ const appLogo = require('@/assets/logo.svg');
 const { isLoggedIn } = useIsLoggedIn();
 const { session, restoreSession } = useSolidSession();
 
-const { createRegistry, createRegistration, registryExists, registrationExists, uploadFile, updateProfileRegistry, getProfileRegistry } = useOrganisationStore();
+const { createRegistry, createRegistration, registryExists, registrationExists, uploadFile, updateProfileRegistry, getProfileRegistry, getRegistry } = useOrganisationStore();
 
-getProfileRegistry().then(result=> console.log('ProfileRegistry: ',result));
+getProfileRegistry().then(result=> podNodes.value = result);
 // re-use Solid session
 restoreSession();
 const registryName = ref<string>('');
@@ -77,33 +76,18 @@ const registrationNameExists = ref<boolean>(false);
 const fileNotSelected = ref<boolean>(false);
 const fileInput = ref<HTMLInputElement | null>(null);
 
-const podNodes = ref<TreeNode[]>([
-  {
-    key:'0',
-    data:"registry-uri",
-    label:"Registry",
-    children:[
-      {
-        key:'0-0',
-        data:"registration-uri",
-        label:"Registration",
-        children:[
-          {
-            key:'0-0-0',
-            data:"file-uri",
-            label:"File"
-          }
-        ]
-      }
-    ]
-  }
-]);
+const podNodes = ref<TreeNode[]>([]);
 
 const toast = useToast();
 
 function updateSelectedKeys(selectionKeys:TreeSelectionKeys){
   console.log(selectionKeys);
 }
+function onNodeExpand(treeNode:TreeNode){
+  console.log(treeNode);
+  getRegistry(treeNode.key).then(result=> treeNode.children = result);
+}
+
 function resetErrorMessage(){
   invalidRegistry.value=false;
   invalidRegistration.value=false;

@@ -2,6 +2,7 @@ import { Session } from '@datev-research/mandat-shared-solid-oidc';
 import { DCT, getResource, INTEROP, LDP, ParsedN3, parseToN3, putResource, RDF, XSD } from "@datev-research/mandat-shared-solid-requests";
 import axios from 'axios';
 import { DataFactory, Writer } from "n3";
+import {TreeNode} from "primevue/treenode";
 
 const { quad, blankNode, namedNode, literal, variable, defaultGraph } = DataFactory;
 
@@ -209,9 +210,32 @@ _:rename a solid:InsertDeletePatch;
   });
 }
 
-export const getProfileRegistry = async(uri:string, session:Session) => {
-  const store = await requestStore(uri,session);
-  return __getObjectValues(null,INTEROP("hasDataRegistry"),store);
+export const getProfileRegistry = async(uri:string, session:Session): Promise<TreeNode[]> => {
+  let store = await requestStore(uri,session);
+  if(store === null){
+    store = await requestStore(uri+".meta",session);
+  }
+  const types: string [] = __getObjectValues(null,RDF("type"),store);
+  let urls:string[] = [];
+  let leaf:boolean = true;
+  if( types.includes(INTEROP("RegistrySet") )){
+    urls = __getObjectValues(null,INTEROP("hasDataRegistry"),store);
+    leaf = false;
+  }
+  else if( types.includes(INTEROP("DataRegistry") )){
+    urls = __getObjectValues(null,INTEROP("hasDataRegistration"),store);
+    leaf = false;
+  }
+  else if( types.includes(INTEROP("DataRegistration") )){
+    urls = __getObjectValues(null,LDP("contains"),store);
+  }
+
+  return urls.map(registry => ({
+    key: registry,
+    label:registry.split('/').at(-1) || registry.split('/').at(-2),
+    leaf,
+    loading: true
+  }));
 };
 
 const __getResource = async(uri:string, session:Session)=> {

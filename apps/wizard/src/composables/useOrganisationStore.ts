@@ -114,7 +114,8 @@ export const useOrganisationStore = () => {
         file.type,
         session
     ),
-    getProfileRegistry:()=> getProfileRegistry(SOLD_PROFILE_REGISTRY_URI, session)
+    getProfileRegistry:()=> getProfileRegistry(SOLD_PROFILE_REGISTRY_URI, session),
+    getRegistry:(uri:string)=> getProfileRegistry(uri, session),
 
   };
 };
