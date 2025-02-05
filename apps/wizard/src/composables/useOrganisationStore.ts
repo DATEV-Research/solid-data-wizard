@@ -8,7 +8,7 @@ import {
   createDataRegistration,
   verifyDataRegistration,
   applyShapeTree,
-  updateProfileRegistryData, getRegistryResource
+  addProfileRegistryData, getRegistryResource, deleteRegistryResource
 } from "@/utils/solid-helper";
 import {
   useIsLoggedIn,
@@ -44,7 +44,7 @@ import { computed, ref, watch } from "vue";
 
 const SOLD_PDF_BINARY_SHAPE_URI = "https://sme.solid.aifb.kit.edu/shapetrees/pdfBinary.shape"
 const SOLD_PDF_BINARY_SHAPETREE_URI = "https://sme.solid.aifb.kit.edu/shapetrees/pdfBinary.tree"
-const SOLD_PROFILE_REGISTRY_URI = "https://sme.solid.aifb.kit.edu/profile/registry";
+const SOLID_PROFILE_REGISTRY_URI = "https://sme.solid.aifb.kit.edu/profile/registry";
 
 export const useOrganisationStore = () => {
   const { isLoggedIn } = useIsLoggedIn();
@@ -102,7 +102,7 @@ export const useOrganisationStore = () => {
       }
     },
     updateProfileRegistry: async (registryName: string) => {
-      await updateProfileRegistryData(`${SOLD_PROFILE_REGISTRY_URI}`,registryName, session);
+      await addProfileRegistryData(`${SOLID_PROFILE_REGISTRY_URI}`,registryName, session);
     },
     createRegistration: async (registryName: string, registrationName: string) => {
       const { rdf: registrationRdf, uri: registrationUri } = await createDataRegistration(`${organisationStorageUri.value}${registryName}/`, registrationName, session);
@@ -125,24 +125,30 @@ export const useOrganisationStore = () => {
         file.type,
         session
     ),
+    deleteRegistry: async (registryUri: string) => {
+      await deleteRegistryResource(SOLID_PROFILE_REGISTRY_URI, registryUri, session);
+    },
     getFullRegistry: async ()=> {
-      const registries = await getRegistryResource(SOLD_PROFILE_REGISTRY_URI, session);
+      const registries = await getRegistryResource(SOLID_PROFILE_REGISTRY_URI, session);
       const registrations = await Promise.all(registries.map(registrationUri => getRegistryResource(registrationUri, session)));
       const dataInstances = await Promise.all(registrations.map(dataInstances => Promise.all(dataInstances.map(dataInstanceUri => getRegistryResource(dataInstanceUri, session)))));
 
       const treeNode: TreeNode[] = registries.map((registryUri, registryIndex) => {
         return {
           key: registryUri,
+          data: { x : Math.random() },
           label: getRegistryLabel(registryUri),
           type: 'DataRegistry',
           children: registrations[registryIndex].map((registrationUri, registrationIndex) => {
             return {
               key: registrationUri,
+              data: { x : Math.random() },
               label: getRegistrationLabel(registrationUri),
               type: 'DataRegistration',
               children: dataInstances[registryIndex][registrationIndex].map(uri => {
                 return {
                   key: uri,
+                  data: { x : Math.random() },
                   label: getDataInstanceLabel(uri),
                   type: 'DataInstance',
                   leaf: true,

@@ -7,7 +7,7 @@
     <Dialog v-model:visible="visible">
       <CreateDialog />
     </Dialog>
-    <PodTree :nodes="podNodes" @update:selected-keys="updateSelectedKeys" ></PodTree>
+    <PodTree :loading="loading" :nodes="podNodes" @update:selected-keys="updateSelectedKeys" ></PodTree>
   </div>
   <UnauthenticatedCard v-else />
   
@@ -18,25 +18,25 @@
 </template>
 
 <script lang="ts" setup>
-import {DacklHeaderBar, DacklTextInput, UnauthenticatedCard} from "@datev-research/mandat-shared-components";
-import {useIsLoggedIn, useSolidSession} from "@datev-research/mandat-shared-composables";
-import axios from "axios";
-import Toast from "primevue/toast";
-import {useOrganisationStore} from "./composables/useOrganisationStore";
-import {computed, onMounted, ref} from "vue";
+import CreateDialog from "@/components/CreateDialog.vue";
 import PodTree from "@/components/PodTree.vue";
+import {DacklHeaderBar, UnauthenticatedCard} from "@datev-research/mandat-shared-components";
+import {useIsLoggedIn, useSolidSession} from "@datev-research/mandat-shared-composables";
+import Toast from "primevue/toast";
 import {TreeSelectionKeys} from "primevue/tree";
 import {TreeNode} from "primevue/treenode";
-import CreateDialog from "@/components/CreateDialog.vue";
+import {computed, onMounted, ref} from "vue";
+import {useOrganisationStore} from "./composables/useOrganisationStore";
 
 const appLogo = require('@/assets/logo.svg');
 
 const { isLoggedIn } = useIsLoggedIn();
 const { session, restoreSession } = useSolidSession();
 
-const {  getFullRegistry } = useOrganisationStore();
+const {  getFullRegistry, deleteRegistry } = useOrganisationStore();
 
 const podNodes = ref<TreeNode[]>([]);
+const loading = ref<boolean>(true);
 const selectedNodes = ref<TreeSelectionKeys>({});
 const hasSelection = computed(() => Object.keys(selectedNodes.value).length > 0);
 const visible = ref(false);
@@ -47,8 +47,10 @@ onMounted(() => {
   });
 });
 
-function updatePodTree() {
-  getFullRegistry().then(result => podNodes.value = result);
+async function updatePodTree() {
+  loading.value = true;
+  podNodes.value = await getFullRegistry();
+  loading.value = false;
 }
 
 function updateSelectedKeys(selectionKeys:TreeSelectionKeys){
@@ -57,6 +59,7 @@ function updateSelectedKeys(selectionKeys:TreeSelectionKeys){
 }
 
 async function deleteSelectedNodes(){
+  loading.value = true;
   const nodesUrisToBeDeleted: string[] =
       Object.entries(selectedNodes.value).filter(([, value])=>value.checked).map(([key])=>
       key);
@@ -65,21 +68,24 @@ async function deleteSelectedNodes(){
   nodesUrisToBeDeleted.sort((a, b) => {
     const aSlashes = a.match(/\//)?.length ?? 0;
     const bSlashes = b.match(/\//)?.length ?? 0;
-    return bSlashes - aSlashes;
+    const slashesDiff = bSlashes - aSlashes;
+    if (slashesDiff === 0) {
+      return a.localeCompare(b);
+    }
+    return slashesDiff;
   }).reverse();
 
-  for (const uriToDelete of nodesUrisToBeDeleted) {
-    // First: Remove the resource
-    // await session.authFetch({url: uriToDelete, method: 'DELETE'});
+  console.log("nodesUrisToBeDeleted", nodesUrisToBeDeleted);
+
+  if (!confirm(`Are you sure you want to delete ${nodesUrisToBeDeleted.length} entries?`)) {
+    return;
   }
 
-  // Second: Check for Profile/Registry to Update "hasDataRegistry"
+  for (const uriToDelete of nodesUrisToBeDeleted) {
+    await deleteRegistry(uriToDelete);
+  }
 
-
-  // Third: Check for DataRegistry to Update "hasDataRegistration"
-
-  console.log("delete", nodesUrisToBeDeleted);
-
+  loading.value = false;
 }
 
 
