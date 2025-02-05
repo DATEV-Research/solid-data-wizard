@@ -239,7 +239,12 @@ export const getProfileRegistry = async(uri:string, session:Session): Promise<Tr
 };
 
 const __getResource = async(uri:string, session:Session)=> {
-  return await getResource(uri, session).then(({ data }) => data);
+  const headers = {
+    'Cache-Control': 'no-cache',
+    'Pragma': 'no-cache',
+    'Expires': '0',
+  };
+  return await getResource(uri, session, headers).then(({ data }) => data);
 }
 /**
  * Verifies if the given URI is a DataRegistry by checking the entity's type.
