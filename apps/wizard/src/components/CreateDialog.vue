@@ -8,6 +8,8 @@ import {useOrganisationStore} from "@/composables/useOrganisationStore";
 
 const { createRegistry, createRegistration, registryExists, registrationExists, uploadFile, updateProfileRegistry } = useOrganisationStore();
 
+const emit = defineEmits(['registryCreated']);
+
 // re-use Solid session
 const registryName = ref<string>('');
 const registrationName = ref<string>('');
@@ -65,6 +67,7 @@ async function addRegistrationName(): Promise<void>{
           life: 5000,
         });
         resetData();
+        emit('registryCreated', true);
       }
       catch(err){
         toast.add({
@@ -72,6 +75,7 @@ async function addRegistrationName(): Promise<void>{
           summary: "File is not uploaded",
           life: 5000,
         });
+        emit('registryCreated', false);
       }
 
     }

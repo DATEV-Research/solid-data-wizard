@@ -5,7 +5,7 @@
     <Button label="Show" @click="visible = true" />
     <Button label="Delete" @click="deleteSelectedNodes" :disabled="!hasSelection" />
     <Dialog v-model:visible="visible">
-      <CreateDialog />
+      <CreateDialog @registryCreated="closeDialog" />
     </Dialog>
     <PodTree :loading="loading" :nodes="podNodes" @update:selected-keys="updateSelectedKeys" ></PodTree>
   </div>
@@ -27,6 +27,8 @@ import {TreeSelectionKeys} from "primevue/tree";
 import {TreeNode} from "primevue/treenode";
 import {computed, onMounted, ref} from "vue";
 import {useOrganisationStore} from "./composables/useOrganisationStore";
+import {useToast} from "primevue/usetoast";
+import {useConfirm} from "primevue/useconfirm";
 
 const appLogo = require('@/assets/logo.svg');
 
@@ -41,12 +43,18 @@ const selectedNodes = ref<TreeSelectionKeys>({});
 const hasSelection = computed(() => Object.keys(selectedNodes.value).length > 0);
 const visible = ref(false);
 
+const toast = useToast();
+
 onMounted(() => {
   restoreSession().then(() => {
     updatePodTree();
   });
 });
 
+function closeDialog(){
+  visible.value = false;
+  updatePodTree();
+}
 async function updatePodTree() {
   loading.value = true;
   podNodes.value = await getFullRegistry();
@@ -86,8 +94,8 @@ async function deleteSelectedNodes(){
   }
 
   loading.value = false;
+  await updatePodTree();
 }
-
 
 </script>
 
