@@ -3,7 +3,7 @@ import {ref} from "vue";
 import {TreeNode} from "primevue/treenode";
 import {TreeSelectionKeys} from "primevue/tree";
 
-const props = defineProps<{nodes:TreeNode[]}>();
+defineProps<{nodes:TreeNode[]}>();
 const emits = defineEmits<{
   (e: "update:selectedKeys", value: TreeSelectionKeys): void;
   (e: "node-expand", value: TreeNode): void;

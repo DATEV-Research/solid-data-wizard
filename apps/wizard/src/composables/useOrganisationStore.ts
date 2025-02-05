@@ -8,7 +8,7 @@ import {
   createDataRegistration,
   verifyDataRegistration,
   applyShapeTree,
-  updateProfileRegistryData, getProfileRegistry
+  updateProfileRegistryData, getRegistryResource
 } from "@/utils/solid-helper";
 import {
   useIsLoggedIn,
@@ -19,6 +19,7 @@ import {
   ParsedN3,
   SPACE,
 } from "@datev-research/mandat-shared-solid-requests";
+import {TreeNode} from "primevue/treenode";
 import { computed, ref, watch } from "vue";
 
 /**
@@ -78,6 +79,16 @@ export const useOrganisationStore = () => {
     { immediate: true }
   );
 
+  const getRegistryLabel = (uri: string): string => {
+    return `${uri.split("/").at(-2)}`;
+  }
+  const getRegistrationLabel = (uri: string): string => {
+    return `${uri.split("/").at(-2)}`;
+  }
+  const getDataInstanceLabel = (uri: string): string => {
+    return `${uri.split("/").at(-1)}`;
+  }
+
   return {
     // storageUri: organisationStorageUri,
 
@@ -98,12 +109,12 @@ export const useOrganisationStore = () => {
       if (!(await verifyDataRegistration(registrationUri, session))) {
         throw new Error("UnexpectedError: registration Type is not set correctly, after creating it.");
       }
-      applyShapeTree(
-        registrationUri,
-        memberOf.value,
-        SOLD_PDF_BINARY_SHAPE_URI,
-        SOLD_PDF_BINARY_SHAPETREE_URI,
-        session,
+      await applyShapeTree(
+          registrationUri,
+          memberOf.value,
+          SOLD_PDF_BINARY_SHAPE_URI,
+          SOLD_PDF_BINARY_SHAPETREE_URI,
+          session,
       );
     },
     
@@ -114,8 +125,35 @@ export const useOrganisationStore = () => {
         file.type,
         session
     ),
-    getProfileRegistry:()=> getProfileRegistry(SOLD_PROFILE_REGISTRY_URI, session),
-    getRegistry:(uri:string)=> getProfileRegistry(uri, session),
+    getFullRegistry: async ()=> {
+      const registries = await getRegistryResource(SOLD_PROFILE_REGISTRY_URI, session);
+      const registrations = await Promise.all(registries.map(registrationUri => getRegistryResource(registrationUri, session)));
+      const dataInstances = await Promise.all(registrations.map(dataInstances => Promise.all(dataInstances.map(dataInstanceUri => getRegistryResource(dataInstanceUri, session)))));
 
+      const treeNode: TreeNode[] = registries.map((registryUri, registryIndex) => {
+        return {
+          key: registryUri,
+          label: getRegistryLabel(registryUri),
+          type: 'DataRegistry',
+          children: registrations[registryIndex].map((registrationUri, registrationIndex) => {
+            return {
+              key: registrationUri,
+              label: getRegistrationLabel(registrationUri),
+              type: 'DataRegistration',
+              children: dataInstances[registryIndex][registrationIndex].map(uri => {
+                return {
+                  key: uri,
+                  label: getDataInstanceLabel(uri),
+                  type: 'DataInstance',
+                  leaf: true,
+                }
+              })
+            }
+          })
+        }
+      });
+
+      return treeNode;
+    },
   };
 };

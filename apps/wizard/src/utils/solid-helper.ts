@@ -2,7 +2,6 @@ import { Session } from '@datev-research/mandat-shared-solid-oidc';
 import { DCT, getResource, INTEROP, LDP, ParsedN3, parseToN3, putResource, RDF, XSD } from "@datev-research/mandat-shared-solid-requests";
 import axios from 'axios';
 import { DataFactory, Writer } from "n3";
-import {TreeNode} from "primevue/treenode";
 
 const { quad, blankNode, namedNode, literal, variable, defaultGraph } = DataFactory;
 
@@ -210,32 +209,32 @@ _:rename a solid:InsertDeletePatch;
   });
 }
 
-export const getProfileRegistry = async(uri:string, session:Session): Promise<TreeNode[]> => {
+/**
+ * Fetches the children of a single registry, registration or registry set.
+ *
+ * @param uri
+ * @param session
+ */
+export const getRegistryResource = async(uri:string, session:Session): Promise<string[]> => {
   let store = await requestStore(uri,session);
-  if(store === null){
-    store = await requestStore(uri+".meta",session);
+  if (store === null) {
+    // Fallback for binary files like PDFs
+    store = await requestStore(`${uri}.meta`,session);
   }
-  const types: string [] = __getObjectValues(null,RDF("type"),store);
-  let urls:string[] = [];
-  let leaf:boolean = true;
+  const types: string[] = __getObjectValues(null,RDF("type"),store);
+  let urls: string[] = [];
+
   if( types.includes(INTEROP("RegistrySet") )){
-    urls = __getObjectValues(null,INTEROP("hasDataRegistry"),store);
-    leaf = false;
+    urls = __getObjectValues(null, INTEROP("hasDataRegistry"),store);
   }
   else if( types.includes(INTEROP("DataRegistry") )){
-    urls = __getObjectValues(null,INTEROP("hasDataRegistration"),store);
-    leaf = false;
+    urls = __getObjectValues(null, INTEROP("hasDataRegistration"),store);
   }
   else if( types.includes(INTEROP("DataRegistration") )){
-    urls = __getObjectValues(null,LDP("contains"),store);
+    urls = __getObjectValues(null, LDP("contains"),store);
   }
 
-  return urls.map(registry => ({
-    key: registry,
-    label:registry.split('/').at(-1) || registry.split('/').at(-2),
-    leaf,
-    loading: true
-  }));
+  return urls;
 };
 
 const __getResource = async(uri:string, session:Session)=> {

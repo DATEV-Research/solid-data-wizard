@@ -7,7 +7,7 @@
     <Dialog v-model:visible="visible">
       <CreateDialog />
     </Dialog>
-    <PodTree :nodes="podNodes" @update:selected-keys="updateSelectedKeys" @node-expand="onNodeExpand" ></PodTree>
+    <PodTree :nodes="podNodes" @update:selected-keys="updateSelectedKeys" ></PodTree>
   </div>
   <UnauthenticatedCard v-else />
   
@@ -20,9 +20,10 @@
 <script lang="ts" setup>
 import {DacklHeaderBar, DacklTextInput, UnauthenticatedCard} from "@datev-research/mandat-shared-components";
 import {useIsLoggedIn, useSolidSession} from "@datev-research/mandat-shared-composables";
+import axios from "axios";
 import Toast from "primevue/toast";
 import {useOrganisationStore} from "./composables/useOrganisationStore";
-import {computed, ref} from "vue";
+import {computed, onMounted, ref} from "vue";
 import PodTree from "@/components/PodTree.vue";
 import {TreeSelectionKeys} from "primevue/tree";
 import {TreeNode} from "primevue/treenode";
@@ -33,31 +34,51 @@ const appLogo = require('@/assets/logo.svg');
 const { isLoggedIn } = useIsLoggedIn();
 const { session, restoreSession } = useSolidSession();
 
-const {  getProfileRegistry, getRegistry } = useOrganisationStore();
-
-getProfileRegistry().then(result=> podNodes.value = result);
-// re-use Solid session
-restoreSession();
+const {  getFullRegistry } = useOrganisationStore();
 
 const podNodes = ref<TreeNode[]>([]);
 const selectedNodes = ref<TreeSelectionKeys>({});
-const hasSelection = computed(()=>Object.keys(selectedNodes.value).length > 0);
-
+const hasSelection = computed(() => Object.keys(selectedNodes.value).length > 0);
 const visible = ref(false);
 
+onMounted(() => {
+  restoreSession().then(() => {
+    updatePodTree();
+  });
+});
+
+function updatePodTree() {
+  getFullRegistry().then(result => podNodes.value = result);
+}
 
 function updateSelectedKeys(selectionKeys:TreeSelectionKeys){
   selectedNodes.value = selectionKeys;
   console.log(selectionKeys);
 }
-function onNodeExpand(treeNode:TreeNode){
-  console.log(treeNode);
-  getRegistry(treeNode.key).then(result=> treeNode.children = result);
-}
 
-function deleteSelectedNodes(){
-  const nodes = Object.entries(selectedNodes.value).filter(([key, value])=>value.checked).map(([key, value])=> key);
-  console.log("delete",nodes );
+async function deleteSelectedNodes(){
+  const nodesUrisToBeDeleted: string[] =
+      Object.entries(selectedNodes.value).filter(([, value])=>value.checked).map(([key])=>
+      key);
+  // const podTree = podNodes.value;
+
+  nodesUrisToBeDeleted.sort((a, b) => {
+    const aSlashes = a.match(/\//)?.length ?? 0;
+    const bSlashes = b.match(/\//)?.length ?? 0;
+    return bSlashes - aSlashes;
+  }).reverse();
+
+  for (const uriToDelete of nodesUrisToBeDeleted) {
+    // First: Remove the resource
+    // await session.authFetch({url: uriToDelete, method: 'DELETE'});
+  }
+
+  // Second: Check for Profile/Registry to Update "hasDataRegistry"
+
+
+  // Third: Check for DataRegistry to Update "hasDataRegistration"
+
+  console.log("delete", nodesUrisToBeDeleted);
 
 }
 
