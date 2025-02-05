@@ -15,6 +15,7 @@ const selectedKey = ref<TreeSelectionKeys>({});
 <template>
   <Tree v-model:selectionKeys="selectedKey" :loading="loading"
         @update:selection-keys="emits('update:selectedKeys', $event)"
+        :filter="true" filterMode="lenient"
         @node-expand="emits('node-expand', $event)" :value="nodes" class="w-full md:w-30rem"
         selectionMode="checkbox" ></Tree>
 </template>
