@@ -1,96 +1,94 @@
 <script setup lang="ts">
 
-import {DacklTextInput} from "@datev-research/mandat-shared-components";
-import {ref} from "vue";
-import {validateInput} from "@/utils/validateInput";
-import {useToast} from "primevue/usetoast";
 import {useOrganisationStore} from "@/composables/useOrganisationStore";
+import {validateInput} from "@/utils/validateInput";
+import {DacklTextInput} from "@datev-research/mandat-shared-components";
+import {computedAsync} from "@vueuse/core";
+import {useToast} from "primevue/usetoast";
+import {computed, ref} from "vue";
 
 const { createRegistry, createRegistration, registryExists, registrationExists, uploadFile, updateProfileRegistry } = useOrganisationStore();
 
-const emit = defineEmits(['registryCreated']);
+const emit = defineEmits<{
+  (e: "registryCreated", value: boolean): void;
+}>();
 
 // re-use Solid session
 const registryName = ref<string>('');
 const registrationName = ref<string>('');
-const invalidRegistration = ref<boolean>(false);
-const invalidRegistry = ref<boolean>(false);
-const registrationNameExists = ref<boolean>(false);
-const fileNotSelected = ref<boolean>(false);
-const fileInput = ref<HTMLInputElement | null>(null);
+const fileInput = ref<HTMLInputElement | null>(null); // use `useTemplateRef()` in vue 3.5+
+
+const invalidRegistry = computed<boolean>(() => !validateInput(registryName.value));
+const invalidRegistration = computed<boolean>(() => !validateInput(registrationName.value));
+const registrationNameExists = computedAsync<boolean>(() => {
+  if (!registryName.value || !registrationName.value) { return Promise.resolve(false); }
+  return registrationExists(registryName.value,
+          registrationName.value);
+}, false, { lazy: false, shallow: true });
+const fileNotSelected = computed<boolean>(() => dirty.value && (!fileInput.value || fileInput.value.files?.length === 0));
+const isInvalid = computed<boolean>(() => invalidRegistry.value || invalidRegistration.value || registrationNameExists.value || fileNotSelected.value);
+/**
+ * Dirty is true when the Button Submit was clicked at least once.
+ */
+const dirty = ref<boolean>(false);
 
 const toast = useToast();
 
-function resetErrorMessage(){
-  invalidRegistry.value=false;
-  invalidRegistration.value=false;
-  registrationNameExists.value=false;
+function resetErrorMessage() {
+  dirty.value = false;
 }
+
 function resetData(){
   registryName.value = '';
   registrationName.value = '';
-  fileInput.value.value = '';
+  if (fileInput.value) {
+    fileInput.value.value = '';
+  }
   resetErrorMessage();
 }
+
 async function addRegistrationName(): Promise<void>{
   resetErrorMessage();
+  dirty.value = true;
+
+  if (isInvalid.value) {
+    return;
+  }
+
   const registry = registryName.value;
   const registration = registrationName.value;
-  const isRegistrationExists = await registrationExists(registry,registration);
-  const input = (fileInput.value as HTMLInputElement);
+  const input = fileInput.value;
 
-  if(!validateInput(registry)){
-    invalidRegistry.value=true;
+  if (!(await registryExists(registry))) {
+    await createRegistry(registry);
+    await updateProfileRegistry(registry);
   }
-  else if(!validateInput(registration)){
-    invalidRegistration.value=true;
-  }
-  else if (!input){
-    fileNotSelected.value = true;
-  }
-  else if (isRegistrationExists){
-    registrationNameExists.value=true;
-  }
-  else {
-    if (!(await registryExists(registry))) { await createRegistry(registry);await updateProfileRegistry(registry); }
-    await createRegistration(registry, registration);
 
-    if (input.files && input.files.length) {
-      try{
-        await Promise.all(
-            Array.from(input.files)
-                .map(file => uploadFile(file, registry, registration)));
+  await createRegistration(registry, registration);
 
-        toast.add({
-          severity: "success",
-          summary: "File successfully uploaded!",
-          life: 5000,
-        });
-        resetData();
-        emit('registryCreated', true);
-      }
-      catch(err){
-        toast.add({
-          severity: "error",
-          summary: "File is not uploaded",
-          life: 5000,
-        });
-        emit('registryCreated', false);
-      }
+  if (input && input.files && input.files.length) {
+    try{
+      await Promise.all(
+          Array.from(input.files)
+              .map(file => uploadFile(file, registry, registration)));
 
+      toast.add({
+        severity: "success",
+        summary: "File successfully uploaded!",
+        life: 5000,
+      });
+      resetData();
+      emit('registryCreated', true);
     }
-  }
+    catch(err){
+      toast.add({
+        severity: "error",
+        summary: "File is not uploaded",
+        life: 5000,
+      });
+      emit('registryCreated', false);
+    }
 
-}
-
-function fileSelected(event: Event){
-  const file = (event.target as HTMLInputElement);
-  fileInput.value = file;
-  if(file){
-    fileNotSelected.value = false;
-  }
-  else{
-    fileNotSelected.value = true;
   }
 }
 </script>
@@ -103,18 +101,18 @@ function fileSelected(event: Event){
           </div>
           <div class="col-12">
             <DacklTextInput type="string" :disabled="false" class="w-full md:w-auto mt-2" label="Enter Registry Name" v-model="registryName"/>
-            <span v-show="invalidRegistry" class="text-red-500 mt-2">Ungültige Eingabe</span>
+            <span v-show="dirty && invalidRegistry" class="text-red-500 mt-2">Invalid DataRegistry name. Allowed characters: a-Z-0-9</span>
           </div>
           <div class="col-12">
-            <DacklTextInput type="string" :disabled="false"  class="w-full md:w-auto mt-2" label="Add Registration Name" v-model="registrationName"/>
-            <span v-show="invalidRegistration" class="text-red-500">Ungültige Eingabe</span>
-            <span v-show="registrationNameExists" class="text-red-500">Registration name already exists</span>
+            <DacklTextInput type="string" :disabled="false" class="w-full md:w-auto mt-2" label="Add Registration Name" v-model="registrationName"/>
+            <span v-show="dirty && invalidRegistration" class="text-red-500 mt-2">Invalid DataRegistration name. Allowed characters: a-Z_0-9</span>
+            <span v-show="dirty && registrationNameExists" class="text-red-500">DataRegistration Name already used.</span>
           </div>
           <div class="col-12">
-            <input type="file" @change="fileSelected" />
+            <input ref="fileInput" type="file" />
           </div>
           <div class="col-12">
-            <span v-show="fileNotSelected" class="text-red-500">No file selected</span>
+            <span v-show="dirty && fileNotSelected" class="text-red-500">No file selected.</span>
           </div>
 
           <div class="col-12 ">

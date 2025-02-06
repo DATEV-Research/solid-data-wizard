@@ -25,10 +25,9 @@ import {useIsLoggedIn, useSolidSession} from "@datev-research/mandat-shared-comp
 import Toast from "primevue/toast";
 import {TreeSelectionKeys} from "primevue/tree";
 import {TreeNode} from "primevue/treenode";
+import {useToast} from "primevue/usetoast";
 import {computed, onMounted, ref} from "vue";
 import {useOrganisationStore} from "./composables/useOrganisationStore";
-import {useToast} from "primevue/usetoast";
-import {useConfirm} from "primevue/useconfirm";
 
 const appLogo = require('@/assets/logo.svg');
 
@@ -89,8 +88,22 @@ async function deleteSelectedNodes(){
     return;
   }
 
-  for (const uriToDelete of nodesUrisToBeDeleted) {
-    await deleteRegistry(uriToDelete);
+  try {
+    for (const uriToDelete of nodesUrisToBeDeleted) {
+      await deleteRegistry(uriToDelete);
+    }
+    toast.add({
+      severity: "success",
+      summary: `${nodesUrisToBeDeleted.length} Entries deleted successfully!`,
+      life: 5000,
+    });
+  } catch (err: unknown) {
+    toast.add({
+      severity: "error",
+      summary: "Deletion failed!",
+      life: 5000,
+    });
+    console.error("[deleteSelectedNodes] Failed due to error: ", err);
   }
 
   loading.value = false;
