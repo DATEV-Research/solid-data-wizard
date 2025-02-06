@@ -7,7 +7,12 @@
     <Dialog v-model:visible="visible">
       <CreateDialog @registryCreated="closeDialog" />
     </Dialog>
-    <PodTree :loading="loading" :nodes="podNodes" @update:selected-keys="updateSelectedKeys" ></PodTree>
+    <PodTree :loading="loading" :nodes="podNodes"
+             @update:selected-keys="updateSelectedKeys"
+             @node-select="onNodeSelect"
+             @node-unselect="onNodeSelect"></PodTree>
+
+    <Preview :content="previewData" :type="previewType"></Preview>
   </div>
   <UnauthenticatedCard v-else />
   
@@ -28,6 +33,8 @@ import {TreeNode} from "primevue/treenode";
 import {useToast} from "primevue/usetoast";
 import {computed, onMounted, ref} from "vue";
 import {useOrganisationStore} from "./composables/useOrganisationStore";
+import Preview from "@/components/Preview.vue";
+import {getResource} from "@datev-research/mandat-shared-solid-requests";
 
 const appLogo = require('@/assets/logo.svg');
 
@@ -41,6 +48,8 @@ const loading = ref<boolean>(true);
 const selectedNodes = ref<TreeSelectionKeys>({});
 const hasSelection = computed(() => Object.keys(selectedNodes.value).length > 0);
 const visible = ref(false);
+const previewData = ref('');
+const previewType = ref('');
 
 const toast = useToast();
 
@@ -50,6 +59,17 @@ onMounted(() => {
   });
 });
 
+function onNodeSelect(node: TreeNode){
+  previewData.value = '';
+  const header = { Accept: "text/turtle,application/*,image/*" };
+  getResource(`${node.key}`, session, header).then((response) => {
+    console.log('Response:', response.data);
+    previewData.value = response.data;
+    previewType.value = String(response.headers["Content-Type"]);
+  });
+
+
+}
 function closeDialog(){
   visible.value = false;
   updatePodTree();
