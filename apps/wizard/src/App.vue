@@ -65,7 +65,9 @@ function onNodeSelect(node: TreeNode){
   getResource(`${node.key}`, session, header).then((response) => {
     console.log('Response:', response.data);
     previewData.value = response.data;
-    previewType.value = String(response.headers["Content-Type"]);
+    previewType.value = String(response.headers["content-type"]).split(';')[0];
+    console.log('Header:', response.headers);
+    console.log('Type:', previewType.value);
   });
 
 
