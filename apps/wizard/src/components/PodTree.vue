@@ -15,7 +15,7 @@ const selectedKey = ref<TreeSelectionKeys>({});
 </script>
 
 <template>
-  <Tree class="w-full h-full md:w-30rem"
+  <Tree class="w-full h-full md:w-30rem overflow-auto"
         v-model:selectionKeys="selectedKey"
         :loading="loading"
         :filter="true" filterMode="lenient"

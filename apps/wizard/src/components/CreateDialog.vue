@@ -11,6 +11,7 @@ const { createRegistry, createRegistration, registryExists, registrationExists, 
 
 const emit = defineEmits<{
   (e: "registryCreated", value: boolean): void;
+  (e: "closeDialog", value: boolean): void;
 }>();
 
 // re-use Solid session
@@ -31,13 +32,18 @@ const isInvalid = computed<boolean>(() => invalidRegistry.value || invalidRegist
  * Dirty is true when the Button Submit was clicked at least once.
  */
 const dirty = ref<boolean>(false);
+const loading = ref<boolean>(false);
 
 const toast = useToast();
 
 function resetErrorMessage() {
   dirty.value = false;
 }
+function closeDialog(){
 
+  emit('closeDialog', true);
+  toast.add({ severity: 'info', summary: 'No changes', detail: 'No entries were created.', life: 3000 });
+}
 function resetData(){
   registryName.value = '';
   registrationName.value = '';
@@ -49,6 +55,7 @@ function resetData(){
 
 async function addRegistrationName(): Promise<void>{
   resetErrorMessage();
+  loading.value = true;
   dirty.value = true;
 
   if (isInvalid.value) {
@@ -67,6 +74,7 @@ async function addRegistrationName(): Promise<void>{
   await createRegistration(registry, registration);
 
   if (input && input.files && input.files.length) {
+    loading.value = false;
     try{
       await Promise.all(
           Array.from(input.files)
@@ -94,11 +102,7 @@ async function addRegistrationName(): Promise<void>{
 </script>
 
 <template>
-      <div >
-        <div class="grid pt-0">
-          <div class="col-12">
-            <h1>Solid Data Wizard</h1>
-          </div>
+        <div class="grid pt-0 pb-3">
           <div class="col-12">
             <DacklTextInput type="string" :disabled="false" class="w-full md:w-auto mt-2" label="Enter Registry Name" v-model="registryName"/>
             <span v-show="dirty && invalidRegistry" class="text-red-500 mt-2">Invalid DataRegistry name. Allowed characters: a-Z-0-9</span>
@@ -115,15 +119,13 @@ async function addRegistrationName(): Promise<void>{
             <span v-show="dirty && fileNotSelected" class="text-red-500">No file selected.</span>
           </div>
 
-          <div class="col-12 ">
-            <Button class="mr-2" severity="secondary" @click="resetData"
+          <div class="col-12 text-right">
+            <Button class="mr-2" severity="secondary" @click="closeDialog"
             >Cancel</Button>
-            <Button class="ml-2" @click="addRegistrationName"
-            >Submit</Button>
+            <Button class="ml-2" label="Submit" @click="addRegistrationName" :loading="loading"
+            ></Button>
           </div>
-
         </div>
-      </div>
 </template>
 
 <style scoped>

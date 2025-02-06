@@ -3,23 +3,26 @@
 
   <div v-if="isLoggedIn && session.rdp" class="mt-6 flex" style="height: calc(100% - 8rem);">
     <div class="w-30rem flex h-full flex-column sidenav">
-      <Button class="" label="Show" @click="visible = true" />
-      <Button class="" label="Delete" @click="deleteSelectedNodes" :disabled="!hasSelection" />
-      <PodTree :loading="loading" :nodes="podNodes"
+      <Button class="" label="Create" @click="visible = true"/>
+      <Button class="" label="Delete" @click="deleteSelectedNodes" :disabled="!hasSelection" :loading="loading"/>
+      <PodTree :loading="loading"
+               :nodes="podNodes"
                @update:selected-keys="updateSelectedKeys"
                @node-select="onNodeSelect"
                @node-unselect="onNodeSelect"></PodTree>
 
     </div>
     <main class="flex flex-grow-1 main">
-      <Preview :content="previewData" :type="previewType"></Preview>
+      <h2>{{ name }}</h2>
+      <Preview :content="previewData" :type="previewType" ></Preview>
+      <ProgressSpinner v-if="!previewData"/>
     </main>
 
   </div>
   <UnauthenticatedCard v-else />
 
-  <Dialog modal v-model:visible="visible">
-    <CreateDialog @registryCreated="closeDialog" />
+  <Dialog modal v-model:visible="visible" header="Create Registry" :style="{ width: '25rem' }">
+    <CreateDialog @registryCreated="closeDialog" @closeDialog="visible = false" />
   </Dialog>
   <ConfirmDialog />
   <Toast
@@ -32,6 +35,7 @@
 import CreateDialog from "@/components/CreateDialog.vue";
 import PodTree from "@/components/PodTree.vue";
 import Preview from "@/components/Preview.vue";
+import ProgressSpinner from "primevue/progressspinner";
 import {DacklHeaderBar, UnauthenticatedCard} from "@datev-research/mandat-shared-components";
 import {useIsLoggedIn, useSolidSession} from "@datev-research/mandat-shared-composables";
 import Toast from "primevue/toast";
@@ -41,6 +45,7 @@ import {useConfirm} from "primevue/useconfirm";
 import {useToast} from "primevue/usetoast";
 import {computed, onMounted, ref} from "vue";
 import {useOrganisationStore} from "./composables/useOrganisationStore";
+import {capitalizeFirstLetter} from "@/utils/capitalizeFirstLetter";
 
 const appLogo = require('@/assets/logo.svg');
 const confirm = useConfirm();
@@ -52,6 +57,7 @@ const {  getFullRegistry, deleteRegistry } = useOrganisationStore();
 
 const podNodes = ref<TreeNode[]>([]);
 const loading = ref<boolean>(true);
+const name = ref<string>('');
 const selectedNodes = ref<TreeSelectionKeys>({});
 const hasSelection = computed(() => Object.keys(selectedNodes.value).length > 0);
 const visible = ref(false);
@@ -67,8 +73,15 @@ onMounted(() => {
 });
 
 function onNodeSelect(node: TreeNode){
+  console.log(node);
+  name.value = capitalizeFirstLetter(node.label ?? '');
   previewData.value = undefined;
-  const headers = { Accept: "text/turtle,application/*,image/*" };
+  const headers = {
+    Accept: "text/turtle,application/*,image/*",
+/*    'Cache-Control': 'no-cache',
+    'Pragma': 'no-cache',
+    'Expires': '0'*/
+  };
   session.authFetch({
     url: node.key,
     method: "GET",
@@ -156,12 +169,27 @@ async function deleteSelectedNodes(){
 </script>
 
 <style>
+main{
+  --p-progressspinner-color-1: yellow;
+  --p-progressspinner-color-2: green;
+  --p-progressspinner-color-3: red;
+  --p-progressspinner-color-4: purple;
+}
 html {
   width: 100vw;
   height: 100vh;
   overscroll-behavior-y: contain;
 }
-
+@keyframes p-progress-spinner-dash {
+  100% {
+    stroke-dasharray: 89, 200;
+  }
+}
+@keyframes p-progress-spinner-color {
+  100%{
+    stroke: rgb(25, 91, 120);
+  }
+}
 body {
   overscroll-behavior-y: contain;
   margin: 0;
@@ -174,7 +202,6 @@ body {
   font-weight: 400;
   color: var(--text-color);
 }
-
 /* Track */
 ::-webkit-scrollbar-track {
   border: none;

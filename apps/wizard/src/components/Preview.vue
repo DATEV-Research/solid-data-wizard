@@ -21,9 +21,13 @@ onMounted(() => {
 })
 
 watch(() => props.content, () => {
+
   if (props.type === TEXT_TURTLE) {
     requestAnimationFrame(() => {
-      if (codeBlock.value) {
+      if (codeBlock.value instanceof HTMLElement) {
+        if (codeBlock.value.dataset.highlighted) {
+          delete codeBlock.value.dataset.highlighted;
+        }
         hljs.highlightElement(codeBlock.value);
       }
     });
