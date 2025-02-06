@@ -66,7 +66,6 @@ function updateSelectedKeys(selectionKeys:TreeSelectionKeys){
 }
 
 async function deleteSelectedNodes(){
-  loading.value = true;
   const nodesUrisToBeDeleted: string[] =
       Object.entries(selectedNodes.value).filter(([, value])=>value.checked).map(([key])=>
       key);
@@ -88,6 +87,8 @@ async function deleteSelectedNodes(){
     return;
   }
 
+  loading.value = true;
+
   try {
     for (const uriToDelete of nodesUrisToBeDeleted) {
       await deleteRegistry(uriToDelete);
@@ -106,6 +107,7 @@ async function deleteSelectedNodes(){
     console.error("[deleteSelectedNodes] Failed due to error: ", err);
   }
 
+  selectedNodes.value = {};
   loading.value = false;
   await updatePodTree();
 }
