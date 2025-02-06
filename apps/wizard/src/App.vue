@@ -1,21 +1,27 @@
 <template>
   <DacklHeaderBar app-name="Wizard" :app-logo="appLogo" :isLoggedIn="isLoggedIn" :webId="session.webId" />
 
-  <div v-if="isLoggedIn && session.rdp" class="mt-6 flex flex-column gap-3 py-0 px-3">
-    <Button label="Show" @click="visible = true" />
-    <Button label="Delete" @click="deleteSelectedNodes" :disabled="!hasSelection" />
-    <Dialog v-model:visible="visible">
-      <CreateDialog @registryCreated="closeDialog" />
-    </Dialog>
-    <PodTree :loading="loading" :nodes="podNodes"
-             @update:selected-keys="updateSelectedKeys"
-             @node-select="onNodeSelect"
-             @node-unselect="onNodeSelect"></PodTree>
+  <div v-if="isLoggedIn && session.rdp" class="mt-6 flex" style="height: calc(100% - 8rem);">
+    <div class="w-30rem flex h-full flex-column sidenav">
+      <Button class="" label="Show" @click="visible = true" />
+      <Button class="" label="Delete" @click="deleteSelectedNodes" :disabled="!hasSelection" />
+      <PodTree :loading="loading" :nodes="podNodes"
+               @update:selected-keys="updateSelectedKeys"
+               @node-select="onNodeSelect"
+               @node-unselect="onNodeSelect"></PodTree>
 
-    <Preview :content="previewData" :type="previewType"></Preview>
+    </div>
+    <main class="flex flex-grow-1 main">
+      <Preview :content="previewData" :type="previewType"></Preview>
+    </main>
+
   </div>
   <UnauthenticatedCard v-else />
-  
+
+  <Dialog modal v-model:visible="visible">
+    <CreateDialog @registryCreated="closeDialog" />
+  </Dialog>
+  <ConfirmDialog />
   <Toast
     position="bottom-right"
     :breakpoints="{ '420px': { width: '100%', right: '0', left: '0' } }"
@@ -25,18 +31,19 @@
 <script lang="ts" setup>
 import CreateDialog from "@/components/CreateDialog.vue";
 import PodTree from "@/components/PodTree.vue";
+import Preview from "@/components/Preview.vue";
 import {DacklHeaderBar, UnauthenticatedCard} from "@datev-research/mandat-shared-components";
 import {useIsLoggedIn, useSolidSession} from "@datev-research/mandat-shared-composables";
 import Toast from "primevue/toast";
 import {TreeSelectionKeys} from "primevue/tree";
 import {TreeNode} from "primevue/treenode";
+import {useConfirm} from "primevue/useconfirm";
 import {useToast} from "primevue/usetoast";
 import {computed, onMounted, ref} from "vue";
 import {useOrganisationStore} from "./composables/useOrganisationStore";
-import Preview from "@/components/Preview.vue";
-import {getResource} from "@datev-research/mandat-shared-solid-requests";
 
 const appLogo = require('@/assets/logo.svg');
+const confirm = useConfirm();
 
 const { isLoggedIn } = useIsLoggedIn();
 const { session, restoreSession } = useSolidSession();
@@ -48,7 +55,7 @@ const loading = ref<boolean>(true);
 const selectedNodes = ref<TreeSelectionKeys>({});
 const hasSelection = computed(() => Object.keys(selectedNodes.value).length > 0);
 const visible = ref(false);
-const previewData = ref('');
+const previewData = ref<Blob | undefined>(undefined);
 const previewType = ref('');
 
 const toast = useToast();
@@ -60,14 +67,16 @@ onMounted(() => {
 });
 
 function onNodeSelect(node: TreeNode){
-  previewData.value = '';
-  const header = { Accept: "text/turtle,application/*,image/*" };
-  getResource(`${node.key}`, session, header).then((response) => {
-    console.log('Response:', response.data);
+  previewData.value = undefined;
+  const headers = { Accept: "text/turtle,application/*,image/*" };
+  session.authFetch({
+    url: node.key,
+    method: "GET",
+    headers,
+    responseType: "blob"
+  }).then(response => {
     previewData.value = response.data;
     previewType.value = String(response.headers["content-type"]).split(';')[0];
-    console.log('Header:', response.headers);
-    console.log('Type:', previewType.value);
   });
 
 
@@ -105,33 +114,43 @@ async function deleteSelectedNodes(){
 
   console.log("nodesUrisToBeDeleted", nodesUrisToBeDeleted);
 
-  if (!confirm(`Are you sure you want to delete ${nodesUrisToBeDeleted.length} entries?`)) {
-    return;
-  }
+  confirm.require({
+    message: `Are you sure you want to delete ${nodesUrisToBeDeleted.length} entries?`,
+    header: 'Deletion',
+    icon: 'pi pi-exclamation-triangle',
+    rejectClass: 'p-button-secondary',
+    acceptClass: 'p-button-danger',
+    rejectLabel: 'Cancel',
+    acceptLabel: 'Delete',
+    accept: async () => {
+      loading.value = true;
 
-  loading.value = true;
+      try {
+        for (const uriToDelete of nodesUrisToBeDeleted) {
+          await deleteRegistry(uriToDelete);
+        }
+        toast.add({
+          severity: "success",
+          summary: `${nodesUrisToBeDeleted.length} Entries deleted successfully!`,
+          life: 5000,
+        });
+      } catch (err: unknown) {
+        toast.add({
+          severity: "error",
+          summary: "Deletion failed!",
+          life: 5000,
+        });
+        console.error("[deleteSelectedNodes] Failed due to error: ", err);
+      }
 
-  try {
-    for (const uriToDelete of nodesUrisToBeDeleted) {
-      await deleteRegistry(uriToDelete);
+      selectedNodes.value = {};
+      loading.value = false;
+      await updatePodTree();
+    },
+    reject: () => {
+      toast.add({ severity: 'info', summary: 'No changes', detail: 'No entries were deleted.', life: 3000 });
     }
-    toast.add({
-      severity: "success",
-      summary: `${nodesUrisToBeDeleted.length} Entries deleted successfully!`,
-      life: 5000,
-    });
-  } catch (err: unknown) {
-    toast.add({
-      severity: "error",
-      summary: "Deletion failed!",
-      life: 5000,
-    });
-    console.error("[deleteSelectedNodes] Failed due to error: ", err);
-  }
-
-  selectedNodes.value = {};
-  loading.value = false;
-  await updatePodTree();
+  });
 }
 
 </script>

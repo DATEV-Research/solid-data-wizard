@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import {ref} from "vue";
-import {TreeNode} from "primevue/treenode";
 import {TreeSelectionKeys} from "primevue/tree";
+import {TreeNode} from "primevue/treenode";
+import {ref} from "vue";
 
 defineProps<{ nodes: TreeNode[], loading?: boolean }>();
 const emits = defineEmits<{
@@ -15,7 +15,7 @@ const selectedKey = ref<TreeSelectionKeys>({});
 </script>
 
 <template>
-  <Tree class="w-full md:w-30rem"
+  <Tree class="w-full h-full md:w-30rem"
         v-model:selectionKeys="selectedKey"
         :loading="loading"
         :filter="true" filterMode="lenient"
