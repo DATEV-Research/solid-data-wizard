@@ -1,27 +1,30 @@
 <template>
   <DacklHeaderBar app-name="Wizard" :app-logo="appLogo" :isLoggedIn="isLoggedIn" :webId="session.webId" />
 
-  <div v-if="isLoggedIn && session.rdp" class="mt-6 flex" style="height: calc(100% - 8rem);">
+  <div v-if="isLoggedIn && session.rdp" class="mt-5 flex" style="height: calc(100% - 8rem);">
     <div class="w-30rem flex h-full flex-column sidenav">
-      <Button class="" label="Create" @click="visible = true"/>
-      <Button class="" label="Delete" @click="deleteSelectedNodes" :disabled="!hasSelection" :loading="loading"/>
-      <PodTree :loading="loading"
+      <div class="flex flex-row gap-2 align-content-center pb-2 pl-3">
+        <h3 class="m-0 p-0 pt-2">Pod Tree Beta v1</h3>
+        <div class="flex-grow-1"></div>
+        <Button icon="pi pi-plus" class="mr-2" severity="info" rounded aria-label="Cancel"  @click="visible = true"/>
+        <Button icon="pi pi-trash" :severity="hasSelection ? 'danger' : 'secondary'" rounded aria-label="Cancel"  @click="deleteSelectedNodes" :disabled="!hasSelection" :loading="pendingDelete"/>
+      </div>
+ <PodTree :loading="loading"
                :nodes="podNodes"
                @update:selected-keys="updateSelectedKeys"
                @node-select="onNodeSelect"
                @node-unselect="onNodeSelect"></PodTree>
-
     </div>
-    <main class="flex flex-grow-1 main">
-      <h2>{{ name }}</h2>
-      <Preview :content="previewData" :type="previewType" ></Preview>
-      <ProgressSpinner v-if="!previewData"/>
+    <main class="flex flex-column flex-grow-1 main px-4">
+     <h2 class="m-0 p-0 pt-1">{{ name }}</h2>
+        <Preview :content="previewData" :type="previewType"></Preview>
+        <ProgressSpinner v-if="!previewData && previewEnable"/>
     </main>
 
   </div>
   <UnauthenticatedCard v-else />
 
-  <Dialog modal v-model:visible="visible" header="Create Registry" :style="{ width: '25rem' }">
+  <Dialog modal v-model:visible="visible" header="Create Registry" :style="{ width: '40rem' }">
     <CreateDialog @registryCreated="closeDialog" @closeDialog="visible = false" />
   </Dialog>
   <ConfirmDialog />
@@ -57,12 +60,15 @@ const {  getFullRegistry, deleteRegistry } = useOrganisationStore();
 
 const podNodes = ref<TreeNode[]>([]);
 const loading = ref<boolean>(true);
+const pendingDelete = ref<boolean>(false);
 const name = ref<string>('');
 const selectedNodes = ref<TreeSelectionKeys>({});
 const hasSelection = computed(() => Object.keys(selectedNodes.value).length > 0);
 const visible = ref(false);
 const previewData = ref<Blob | undefined>(undefined);
 const previewType = ref('');
+const previewEnable = ref<boolean>(false);
+
 
 const toast = useToast();
 
@@ -73,7 +79,7 @@ onMounted(() => {
 });
 
 function onNodeSelect(node: TreeNode){
-  console.log(node);
+  previewEnable.value = true;
   name.value = capitalizeFirstLetter(node.label ?? '');
   previewData.value = undefined;
   const headers = {
@@ -137,6 +143,7 @@ async function deleteSelectedNodes(){
     acceptLabel: 'Delete',
     accept: async () => {
       loading.value = true;
+      pendingDelete.value = true;
 
       try {
         for (const uriToDelete of nodesUrisToBeDeleted) {
@@ -158,6 +165,7 @@ async function deleteSelectedNodes(){
 
       selectedNodes.value = {};
       loading.value = false;
+      pendingDelete.value = false;
       await updatePodTree();
     },
     reject: () => {
@@ -198,7 +206,7 @@ body {
   overflow-x: hidden;
   overflow-y: auto;
   background-color: var(--surface-b);
-  font-family: var(--font-family);
+  font-family: var(--font-family, Arial);
   font-weight: 400;
   color: var(--text-color);
 }

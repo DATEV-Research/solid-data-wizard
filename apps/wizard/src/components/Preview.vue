@@ -41,15 +41,18 @@ const contentUrl = ref<string>('');
 </script>
 
 <template>
-  <div class="w-full" v-if="content">
-    <pre v-if="type === TEXT_TURTLE"><code ref="codeBlock" class="turtle border-round bg-gray-50">{{ contentText }}</code></pre>
+  <div class="w-full h-full" v-if="content">
+    <pre v-if="type === TEXT_TURTLE" class="w-11"><code ref="codeBlock" class="turtle border-round bg-gray-50 overflow-auto">{{ contentText }}</code></pre>
     <object v-if="type === APPLICATION_PDF" :data="contentUrl" :type="type"
-            style="width: 100%; height: 100%;"></object>
-    <img v-if="isImageType" :src="contentUrl"  alt="preview"/>
+            style="width: 100%; height: 100%;" class="mt-3"></object>
+    <img v-if="isImageType" :src="contentUrl"  alt="preview" class="mt-3 w-full" />
   </div>
 
 </template>
 
 <style scoped>
-
+img{
+  max-width:50rem;
+  max-height:50rem;
+}
 </style>

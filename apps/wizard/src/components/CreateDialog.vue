@@ -55,7 +55,6 @@ function resetData(){
 
 async function addRegistrationName(): Promise<void>{
   resetErrorMessage();
-  loading.value = true;
   dirty.value = true;
 
   if (isInvalid.value) {
@@ -74,7 +73,7 @@ async function addRegistrationName(): Promise<void>{
   await createRegistration(registry, registration);
 
   if (input && input.files && input.files.length) {
-    loading.value = false;
+    loading.value = true;
     try{
       await Promise.all(
           Array.from(input.files)
@@ -85,6 +84,7 @@ async function addRegistrationName(): Promise<void>{
         summary: "File successfully uploaded!",
         life: 5000,
       });
+
       resetData();
       emit('registryCreated', true);
     }
@@ -98,6 +98,7 @@ async function addRegistrationName(): Promise<void>{
     }
 
   }
+  loading.value = false;
 }
 </script>
 
