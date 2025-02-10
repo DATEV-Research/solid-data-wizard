@@ -4,7 +4,7 @@
   <div v-if="isLoggedIn && session.rdp" class="mt-5 flex" style="height: calc(100% - 8rem);">
     <div class="w-30rem flex h-full flex-column sidenav">
       <div class="flex flex-row gap-2 align-content-center pb-2 pl-3">
-        <h3 class="m-0 p-0 pt-2">Pod Tree Beta v1</h3>
+        <h3 class="m-0 p-0 pt-2">Pod Tree</h3>
         <div class="flex-grow-1"></div>
         <Button icon="pi pi-plus" class="mr-2" severity="info" rounded aria-label="Cancel"  @click="visible = true"/>
         <Button icon="pi pi-trash" :severity="hasSelection ? 'danger' : 'secondary'" rounded aria-label="Cancel"  @click="deleteSelectedNodes" :disabled="!hasSelection" :loading="pendingDelete"/>
@@ -107,6 +107,12 @@ function closeDialog(){
 async function updatePodTree() {
   loading.value = true;
   podNodes.value = await getFullRegistry();
+  podNodes.value.sort((a, b) => {
+    if (a.label && b.label) {
+      return a.label.localeCompare(b.label);
+    }
+    return 0;
+  });
   loading.value = false;
 }
 
