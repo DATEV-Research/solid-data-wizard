@@ -16,11 +16,13 @@ import {
   useSolidSession,
 } from "@datev-research/mandat-shared-composables";
 import {
-  ParsedN3,
+  ParsedN3, putResource,
   SPACE,
 } from "@datev-research/mandat-shared-solid-requests";
 import {TreeNode} from "primevue/treenode";
 import { computed, ref, watch } from "vue";
+import {getFileExtension} from "@/utils/fileExtension";
+import {TTL_EXTENSION} from "@/constants/extensions";
 
 /**
  * TODOs
@@ -101,6 +103,12 @@ export const useOrganisationStore = () => {
         throw new Error("UnexpectedError: registry Type is not set correctly, after creating it.");
       }
     },
+    createShape: async (uri:string, contentShape:string, headers: Record<string, string>)=>{
+      await putResource(uri,contentShape,session, headers);
+    },
+    createShapeTree:async (uri:string, contentShapeTree:string, headers: Record<string, string>)=>{
+      await putResource(uri,contentShapeTree,session, headers);
+    },
     updateProfileRegistry: async (registryName: string) => {
       await addProfileRegistryData(`${SOLID_PROFILE_REGISTRY_URI}`,registryName, session);
     },
@@ -118,13 +126,19 @@ export const useOrganisationStore = () => {
       );
     },
     
-    uploadFile: (file: File, registryName: string, registrationName: string) => createNamedDataInstance(
-        `${organisationStorageUri.value}${registryName}/${registrationName}`,
-        file.name,
-        file,
-        file.type,
-        session
-    ),
+    uploadFile: (file: File, registryName: string, registrationName: string) => {
+      let mimeType = file.type;
+      if(getFileExtension(file.name) === TTL_EXTENSION){
+        mimeType = "text/turtle";
+      }
+      createNamedDataInstance(
+          `${organisationStorageUri.value}${registryName}/${registrationName}`,
+          file.name,
+          file,
+          mimeType,
+          session
+      )
+    },
     deleteRegistry: async (registryUri: string) => {
       await deleteRegistryResource(SOLID_PROFILE_REGISTRY_URI, registryUri, session);
     },

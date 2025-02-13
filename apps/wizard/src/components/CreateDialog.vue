@@ -6,8 +6,12 @@ import {DacklTextInput} from "@datev-research/mandat-shared-components";
 import {computedAsync} from "@vueuse/core";
 import {useToast} from "primevue/usetoast";
 import {computed, ref} from "vue";
+import {getFileExtension} from "@/utils/fileExtension";
+import {TTL_EXTENSION} from "@/constants/extensions";
 
-const { createRegistry, createRegistration, registryExists, registrationExists, uploadFile, updateProfileRegistry } = useOrganisationStore();
+const SHAPE_TREE_CONTAINER_URI = "https://sme.solid.aifb.kit.edu/shapetrees/"
+
+const { createRegistry, createRegistration, registryExists, createShape, createShapeTree, registrationExists, uploadFile, updateProfileRegistry } = useOrganisationStore();
 
 const emit = defineEmits<{
   (e: "registryCreated", value: boolean): void;
@@ -18,6 +22,7 @@ const emit = defineEmits<{
 const registryName = ref<string>('');
 const registrationName = ref<string>('');
 const fileInput = ref<HTMLInputElement | null>(null); // use `useTemplateRef()` in vue 3.5+
+const shapeFileInput = ref<HTMLInputElement | null>(null); // use `useTemplateRef()` in vue 3.5+
 
 const invalidRegistry = computed<boolean>(() => !validateInput(registryName.value));
 const invalidRegistration = computed<boolean>(() => !validateInput(registrationName.value));
@@ -33,6 +38,8 @@ const isInvalid = computed<boolean>(() => invalidRegistry.value || invalidRegist
  */
 const dirty = ref<boolean>(false);
 const loading = ref<boolean>(false);
+
+const ttlUpload = ref<boolean>(false);
 
 const toast = useToast();
 
@@ -50,6 +57,10 @@ function resetData(){
   if (fileInput.value) {
     fileInput.value.value = '';
   }
+  if (shapeFileInput.value) {
+    shapeFileInput.value.value = '';
+  }
+  ttlUpload.value = false;
   resetErrorMessage();
 }
 
@@ -60,7 +71,9 @@ async function addRegistrationName(): Promise<void>{
   if (isInvalid.value) {
     return;
   }
-
+  if(ttlUpload.value){
+    createShapeTreeFile();
+  }
   const registry = registryName.value;
   const registration = registrationName.value;
   const input = fileInput.value;
@@ -100,6 +113,43 @@ async function addRegistrationName(): Promise<void>{
   }
   loading.value = false;
 }
+
+function onFileSelect(event: Event) {
+  const file = event.target.files[0];
+  if (file) {
+    const fileName = file.name;
+    if(getFileExtension(fileName) === TTL_EXTENSION){
+      ttlUpload.value = true;
+    }
+  }
+}
+
+function createShapeTreeFile(){
+  const shapeFileInputVal = shapeFileInput.value;
+  if(shapeFileInputVal) {
+    const file = shapeFileInputVal.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = async function(e) {
+        const shapeContent = e.target.result.toString();
+        const shapeName = shapeContent.match(/<#(.*?)>/)?.[1];
+        const shapeTreeName = shapeName + 'Tree';
+
+        const shapeTreeContent = `@prefix st: <http://www.w3.org/ns/shapetrees#> .
+
+<#${shapeTreeName}> a st:ShapeTree ;
+  st:expectsType	st:Resource ;
+  st:shape      	<${SHAPE_TREE_CONTAINER_URI}${file.name}#${shapeName}> .`
+
+        let headers = {};
+        headers["Content-type"] ='application/octet-stream'
+        await createShape(`${SHAPE_TREE_CONTAINER_URI}${file.name}`,shapeContent,headers);
+        await createShapeTree(`${SHAPE_TREE_CONTAINER_URI}${file.name}.tree`,shapeTreeContent,headers);
+      };
+      reader.readAsText(file);
+    }
+  }
+}
 </script>
 
 <template>
@@ -114,7 +164,10 @@ async function addRegistrationName(): Promise<void>{
             <span v-show="dirty && registrationNameExists" class="text-red-500">DataRegistration Name already used.</span>
           </div>
           <div class="col-12">
-            <input ref="fileInput" type="file" />
+            <input ref="fileInput" type="file" @change="onFileSelect" />
+          </div>
+          <div class="col-12" v-if="ttlUpload">
+            <input ref="shapeFileInput" type="file" />
           </div>
           <div class="col-12">
             <span v-show="dirty && fileNotSelected" class="text-red-500">No file selected.</span>
