@@ -9,6 +9,8 @@ import {computed, ref} from "vue";
 import {getFileExtension} from "@/utils/fileExtension";
 import {TTL_EXTENSION} from "@/constants/extensions";
 import {turtleToShapeTree} from "@/utils/turtleToShapeTree";
+import HljsHighlighter from "@/components/hljsHighlighter.vue";
+import EditShapeContent from "@/components/editShapeContent.vue";
 
 const SHAPE_TREE_CONTAINER_URI = "https://sme.solid.aifb.kit.edu/shapetrees/"
 
@@ -44,8 +46,12 @@ const ttlUpload = ref<boolean>(false);
 
 const shapeContent = ref('');
 
-const toast = useToast();
+const uploadShapeFile = ref<boolean>(false);
 
+const toast = useToast();
+function onUploadShapeFile(){
+  uploadShapeFile.value = !uploadShapeFile.value;
+}
 function resetErrorMessage() {
   dirty.value = false;
 }
@@ -181,7 +187,10 @@ async function createShapeTreeFile(){
             <input ref="fileInput" type="file" @change="onFileSelect" />
           </div>
           <div class="col-12" v-if="ttlUpload">
-            <input ref="shapeFileInput" type="file" @change="onShapeFileSelect"/>
+            <Checkbox v-model="uploadShapeFile" :binary="true"  @change="onUploadShapeFile" />
+
+            <edit-shape-content v-if="!uploadShapeFile" :content="shapeContent" />
+            <input v-else ref="shapeFileInput" type="file" @change="onShapeFileSelect"/>
           </div>
           <div class="col-12">
             <span v-show="dirty && fileNotSelected" class="text-red-500">No file selected.</span>

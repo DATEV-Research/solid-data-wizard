@@ -24,7 +24,7 @@
   </div>
   <UnauthenticatedCard v-else />
 
-  <Dialog modal v-model:visible="visible" header="Create Registry" :style="{ width: '40rem' }">
+  <Dialog modal v-model:visible="visible" header="Create Registry" :style="{ width: '60rem' }">
     <CreateDialog @registryCreated="closeDialog" @closeDialog="visible = false" />
   </Dialog>
   <ConfirmDialog />
