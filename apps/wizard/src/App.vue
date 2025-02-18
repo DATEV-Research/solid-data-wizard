@@ -24,7 +24,7 @@
   </div>
   <UnauthenticatedCard v-else />
 
-  <Dialog modal v-model:visible="visible" header="Create Registry" :style="{ width: '60rem' }">
+  <Dialog modal v-model:visible="visible" header="Upload and register File" :style="{ width: '60rem' }">
     <CreateDialog @registryCreated="closeDialog" @closeDialog="visible = false" />
   </Dialog>
   <ConfirmDialog />
@@ -183,6 +183,7 @@ async function deleteSelectedNodes(){
 </script>
 
 <style>
+
 main{
   --p-progressspinner-color-1: yellow;
   --p-progressspinner-color-2: green;

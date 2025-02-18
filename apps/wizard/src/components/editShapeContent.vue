@@ -28,14 +28,21 @@ function updateShape(){
 }
 </script>
 <template>
-  <hljs-highlighter v-if="content && !isEdit" :content="fileContent" />
-  <textarea v-model="shapeText" class="w-full h-20rem" v-else >
+  <div style="background: #d3d3d3; padding:1rem; margin-top:1rem">
+    <h2>Generated shape file</h2>
+    <div v-show="content && !isEdit" >
+      <hljs-highlighter :content="fileContent" />
+    </div>
+    <div v-if="content && isEdit" >
+    <textarea v-model="shapeText" class="w-full h-20rem" ></textarea>
+    </div>
 
-  </textarea>
-  <Button class="mr-2" v-if="!isEdit" severity="primary" @click="toggleEdit">Edit Shape</Button>
-  <div v-else >
-    <Button class="mr-2" severity="primary" @click="updateShape">Update Shape</Button>
-    <Button class="mr-2" severity="secondary" @click="toggleEdit">Cancel</Button>
+    <Button class="mr-2" v-if="!isEdit" severity="primary" @click="toggleEdit">Edit Shape</Button>
+    <div v-else >
+      <Button class="mr-2" severity="primary" @click="updateShape">Update Shape</Button>
+      <Button class="mr-2" severity="secondary" @click="toggleEdit">Cancel</Button>
+    </div>
+
   </div>
 
 </template>
