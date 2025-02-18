@@ -191,7 +191,7 @@ async function createShapeTreeFile(){
           </div>
           <div class="col-12" v-if="ttlUpload">
             <Checkbox v-model="uploadShapeFile" :binary="true"/>
-            <label> Upload shape file {{uploadShapeFile}}</label>
+            <label> Upload shape file</label>
             <transition name="fade">
             <div v-show="!uploadShapeFile" >
               <edit-shape-content :content="shapeContent" />
