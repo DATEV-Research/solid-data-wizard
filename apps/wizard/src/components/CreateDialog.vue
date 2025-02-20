@@ -9,13 +9,12 @@ import {computed, ref} from "vue";
 import {getFileExtension} from "@/utils/fileExtension";
 import {TTL_EXTENSION} from "@/constants/extensions";
 import {turtleToShapeTree} from "@/utils/turtleToShapeTree";
-import HljsHighlighter from "@/components/hljsHighlighter.vue";
 import EditShapeContent from "@/components/editShapeContent.vue";
 
 
 const SHAPE_TREE_CONTAINER_URI = "https://sme.solid.aifb.kit.edu/shapetrees/"
 
-const { createRegistry, createRegistration, registryExists, createShape, createShapeTree, registrationExists, uploadFile, updateProfileRegistry } = useOrganisationStore();
+const { createRegistry, createRegistration,updateACLPermission, registryExists, createShape, createShapeTree, registrationExists, uploadFile, updateProfileRegistry } = useOrganisationStore();
 
 const emit = defineEmits<{
   (e: "registryCreated", value: boolean): void;
@@ -48,6 +47,7 @@ const ttlUpload = ref<boolean>(false);
 const shapeContent = ref('');
 
 const uploadShapeFile = ref<boolean>(false);
+const toggleShapeContent = ref<boolean>(false);
 
 const toast = useToast();
 function onUploadShapeFile(){
@@ -107,7 +107,7 @@ async function addRegistrationName(): Promise<void>{
         summary: "File successfully uploaded!",
         life: 5000,
       });
-
+      await updateACLPermission(registry, registration);
       resetData();
       emit('registryCreated', true);
     }
@@ -171,39 +171,75 @@ async function createShapeTreeFile(){
   await createShape(`${SHAPE_TREE_CONTAINER_URI}${shapeName}.shape`,shapeContent.value,headers);
   await createShapeTree(`${SHAPE_TREE_CONTAINER_URI}${shapeName}.tree`,shapeTreeContent,headers);
 }
+
+function toggleShapeContentView(){
+  toggleShapeContent.value = !toggleShapeContent.value;
+}
 </script>
 
 <template>
         <div class="grid pt-0 pb-3">
+          <div class="grid col-6">
+            <div class=" col-12">Please select the document to upload</div>
+            <div class="col-12"><input ref="fileInput" type="file" @change="onFileSelect" /></div>
+            <div class="col-12" v-if ="dirty && fileNotSelected">
+              <span class="text-red-500">No file selected.</span>
+            </div>
+          </div>
+          <div class="grid col-6" v-if="ttlUpload">
+           <div class="col-12"><Checkbox v-model="uploadShapeFile" :binary="true"/>
+            <label> Upload shape file</label></div>
+            <div class="col-12" v-if="uploadShapeFile" ><input ref="shapeFileInput" type="file" @change="onShapeFileSelect"/></div>
+            <div class="col-12" v-else @click="toggleShapeContentView"><a> View Created shape file</a></div>
+          </div>
+          <div class="col-12" v-show="toggleShapeContent">
+            <transition name="fade">
+              <div v-show="!uploadShapeFile" >
+                <edit-shape-content :content="shapeContent" @close-preview="toggleShapeContentView" />
+              </div>
+            </transition>
+          </div>
           <div class="col-12">
+            <div class="flex">
+              <div class="flex-grow-1">
             <DacklTextInput type="string" :disabled="false" class="md:w-auto mt-2 flex-1" label="Enter Registry Name" v-model="registryName"/>
-            <i class="pi pi-info-circle flex-0"></i>
+              </div>
+              <div class="flex-none m-auto">
+                <i class="info-icon pi pi-info-circle" v-tooltip.bottom="'A Data Registry contains a collection of Data Registrations.'"></i>
+              </div>
+            </div>
             <span v-show="dirty && invalidRegistry" class="text-red-500 mt-2">Invalid DataRegistry name. Allowed characters: a-Z-0-9</span>
           </div>
           <div class="col-12">
-            <DacklTextInput type="string" :disabled="false" class="w-full md:w-auto mt-2" label="Enter Registration name" v-model="registrationName"/>
-            <i class="pi pi-info-circle"></i>
+            <div class="flex">
+              <div class="flex-grow-1">
+                <DacklTextInput type="string" :disabled="false" class="w-full md:w-auto mt-2" label="Enter Registration name" v-model="registrationName"/>
+              </div>
+              <div class="flex-none m-auto">
+                <i class="info-icon pi pi-info-circle" v-tooltip.bottom="'A Data Registration provides a place to store data that conforms to a specific shape.'"></i>
+              </div>
+            </div>
             <span v-show="dirty && invalidRegistration" class="text-red-500 mt-2">Invalid DataRegistration name. Allowed characters: a-Z_0-9</span>
             <span v-show="dirty && registrationNameExists" class="text-red-500">DataRegistration Name already used.</span>
           </div>
-          <div class="col-12">
+<!--          <div class="col-12">
             <input ref="fileInput" type="file" @change="onFileSelect" />
           </div>
           <div class="col-12" v-if="ttlUpload">
             <Checkbox v-model="uploadShapeFile" :binary="true"/>
             <label> Upload shape file</label>
-            <transition name="fade">
+&lt;!&ndash;            <transition name="fade">
             <div v-show="!uploadShapeFile" >
               <edit-shape-content :content="shapeContent" />
             </div>
-            </transition>
+            </transition>&ndash;&gt;
             <div class="col-12" v-if="uploadShapeFile" >
               <input ref="shapeFileInput" type="file" @change="onShapeFileSelect"/>
             </div>
           </div>
           <div class="col-12">
             <span v-show="dirty && fileNotSelected" class="text-red-500">No file selected.</span>
-          </div>
+          </div>-->
 
           <div class="col-12 text-right">
             <Button class="mr-2" severity="secondary" @click="closeDialog"
@@ -215,6 +251,10 @@ async function createShapeTreeFile(){
 </template>
 
 <style scoped>
+.info-icon{
+  padding:10px;
+
+}
 .fade-enter-active, .fade-leave-active {
   transition: opacity 0.5s;
 }

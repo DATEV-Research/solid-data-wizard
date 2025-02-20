@@ -427,6 +427,73 @@ _:rename a solid:InsertDeletePatch;
     }
 }
 
+export const updateRegistryACLPermission = async(uri:string, registryName:string, session:Session) => {
+  const aclURI = uri + '.acl';
+  const patchBody = `@prefix : <#>.
+      @prefix acl: <http://www.w3.org/ns/auth/acl#>.
+      @prefix foaf: <http://xmlns.com/foaf/0.1/>.
+      @prefix ${registryName}: <./>.
+      @prefix c: </profile/card#>.
+  
+      :ControlReadWrite
+          a acl:Authorization;
+          acl:accessTo ${registryName}:;
+          acl:agent c:me, <mailto:info@sme.com>;
+          acl:default ${registryName}:;
+          acl:mode acl:Control, acl:Read, acl:Write.
+      :Read
+          a acl:Authorization;
+          acl:accessTo ${registryName}:;
+          acl:agentClass foaf:Agent;
+          acl:default ${registryName}:;
+          acl:mode acl:Read.
+      `
+;
+      await session.authFetch({
+        url: aclURI,
+        method: "PUT",
+        headers: {
+          "Content-type": "text/n3",
+        },
+        data: patchBody
+      });
+}
+
+export const updateRegistrationACLPermission = async(uri:string, registrationName:string, session:Session) => {
+  const aclURI = uri + '.acl';
+  const patchBody = `@prefix : <#>.
+    @prefix acl: <http://www.w3.org/ns/auth/acl#>.
+    @prefix foaf: <http://xmlns.com/foaf/0.1/>.
+    @prefix ${registrationName}: <./>.
+    @prefix c: </profile/card#>.
+    
+    :ControlReadWrite
+        a acl:Authorization;
+        acl:accessTo ${registrationName}:;
+        acl:agent c:me, <mailto:info@sme.com>;
+        acl:mode acl:Control, acl:Read, acl:Write.
+    :ControlReadWriteDefault
+        a acl:Authorization;
+        acl:agent c:me, <mailto:info@sme.com>;
+        acl:default ${registrationName}:;
+        acl:mode acl:Control, acl:Read, acl:Write.
+    :Read
+        a acl:Authorization;
+        acl:accessTo ${registrationName}:;
+        acl:agentClass foaf:Agent;
+        acl:mode acl:Read.
+      `
+  ;
+  await session.authFetch({
+    url: aclURI,
+    method: "PUT",
+    headers: {
+      "Content-type": "text/n3",
+    },
+    data: patchBody
+  });
+}
+
 /**
  * Verifies if the given URI is a DataRegistry by checking the entity's type.
  * @param registrationUri 

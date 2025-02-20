@@ -8,7 +8,8 @@ import {
   createDataRegistration,
   verifyDataRegistration,
   applyShapeTree,
-  addProfileRegistryData, getRegistryResource, deleteRegistryResource
+  addProfileRegistryData, getRegistryResource, deleteRegistryResource,
+  updateRegistryACLPermission, updateRegistrationACLPermission
 } from "@/utils/solid-helper";
 import {
   useIsLoggedIn,
@@ -125,7 +126,10 @@ export const useOrganisationStore = () => {
           session,
       );
     },
-    
+    updateACLPermission: async (registryName: string, registrationName:string) => {
+      await updateRegistryACLPermission(`${organisationStorageUri.value}${registryName}/`,registryName, session);
+      await updateRegistrationACLPermission(`${organisationStorageUri.value}${registryName}/${registrationName}/`,registrationName, session);
+    },
     uploadFile: (file: File, registryName: string, registrationName: string) => {
       let mimeType = file.type;
       if(getFileExtension(file.name) === TTL_EXTENSION){
