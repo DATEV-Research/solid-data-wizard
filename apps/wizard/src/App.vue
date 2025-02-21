@@ -1,45 +1,33 @@
 <template>
   <DacklHeaderBar app-name="Wizard" :app-logo="appLogo" :isLoggedIn="isLoggedIn" :webId="session.webId" />
 
-  <div v-if="isLoggedIn && session.rdp" class="mt-6 flex flex-column gap-3 py-0 px-3">
-    <Card class="m-4 ">
-      <template #content>
-        <div >
-          <div class="grid pt-0">
-            <div class="col-12">
-              <h1>Solid Data Wizard</h1>
-            </div>
-            <div class="col-12">
-              <DacklTextInput type="string" :disabled="false" class="w-full md:w-auto mt-2" label="Enter Registry Name" v-model="registryName"/>
-              <span v-show="invalidRegistry" class="text-red-500 mt-2">Ungültige Eingabe</span>
-            </div>
-            <div class="col-12">
-              <DacklTextInput type="string" :disabled="false"  class="w-full md:w-auto mt-2" label="Add Registration Name" v-model="registrationName"/>
-              <span v-show="invalidRegistration" class="text-red-500">Ungültige Eingabe</span>
-              <span v-show="registrationNameExists" class="text-red-500">Registration name already exists</span>
-            </div>
-            <div class="col-12">
-              <input type="file" @change="fileSelected" />
-            </div>
-            <div class="col-12">
-              <span v-show="fileNotSelected" class="text-red-500">No file selected</span>
-            </div>
-
-            <div class="col-12 ">
-              <Button class="mr-2" severity="secondary" @click="resetData"
-              >Cancel</Button>
-              <Button class="ml-2" @click="addRegistrationName"
-              >Submit</Button>
-            </div>
-
-          </div>
-        </div>
-      </template>
-    </Card>
+  <div v-if="isLoggedIn && session.rdp" class="mt-5 flex" style="height: calc(100% - 8rem);">
+    <div class="w-30rem flex h-full flex-column sidenav">
+      <div class="flex flex-row gap-2 align-content-center pb-2 pl-3">
+        <h3 class="m-0 p-0 pt-2">Pod Tree</h3>
+        <div class="flex-grow-1"></div>
+        <Button icon="pi pi-plus" class="mr-2" severity="info" rounded aria-label="Cancel"  @click="visible = true"/>
+        <Button icon="pi pi-trash" :severity="hasSelection ? 'danger' : 'secondary'" rounded aria-label="Cancel"  @click="deleteSelectedNodes" :disabled="!hasSelection" :loading="pendingDelete"/>
+      </div>
+ <PodTree :loading="loading"
+               :nodes="podNodes"
+               @update:selected-keys="updateSelectedKeys"
+               @node-select="onNodeSelect"
+               @node-unselect="onNodeSelect"></PodTree>
+    </div>
+    <main class="flex flex-column flex-grow-1 main px-4">
+     <h2 class="m-0 p-0 pt-1">{{ name }}</h2>
+        <Preview :content="previewData" :type="previewType"></Preview>
+        <ProgressSpinner v-if="!previewData && previewEnable"/>
+    </main>
 
   </div>
   <UnauthenticatedCard v-else />
-  
+
+  <Dialog modal v-model:visible="visible" header="Create Registry" :style="{ width: '40rem' }">
+    <CreateDialog @registryCreated="closeDialog" @closeDialog="visible = false" />
+  </Dialog>
+  <ConfirmDialog />
   <Toast
     position="bottom-right"
     :breakpoints="{ '420px': { width: '100%', right: '0', left: '0' } }"
@@ -47,112 +35,175 @@
 </template>
 
 <script lang="ts" setup>
-import {DacklHeaderBar, UnauthenticatedCard, DacklTextInput} from "@datev-research/mandat-shared-components";
+import CreateDialog from "@/components/CreateDialog.vue";
+import PodTree from "@/components/PodTree.vue";
+import Preview from "@/components/Preview.vue";
+import ProgressSpinner from "primevue/progressspinner";
+import {DacklHeaderBar, UnauthenticatedCard} from "@datev-research/mandat-shared-components";
 import {useIsLoggedIn, useSolidSession} from "@datev-research/mandat-shared-composables";
 import Toast from "primevue/toast";
-import { useOrganisationStore } from "./composables/useOrganisationStore";
-import {ref} from "vue";
-import { useToast } from "primevue/usetoast";
-import {validateInput} from "@/utils/validateInput";
+import {TreeSelectionKeys} from "primevue/tree";
+import {TreeNode} from "primevue/treenode";
+import {useConfirm} from "primevue/useconfirm";
+import {useToast} from "primevue/usetoast";
+import {computed, onMounted, ref} from "vue";
+import {useOrganisationStore} from "./composables/useOrganisationStore";
+import {capitalizeFirstLetter} from "@/utils/capitalizeFirstLetter";
 
 const appLogo = require('@/assets/logo.svg');
+const confirm = useConfirm();
 
 const { isLoggedIn } = useIsLoggedIn();
 const { session, restoreSession } = useSolidSession();
 
-const { createRegistry, createRegistration, registryExists, registrationExists, uploadFile, updateProfileRegistry } = useOrganisationStore();
+const {  getFullRegistry, deleteRegistry } = useOrganisationStore();
 
-// re-use Solid session
-restoreSession();
-const registryName = ref<string>('');
-const registrationName = ref<string>('');
-const invalidRegistration = ref<number>(false);
-const invalidRegistry = ref<number>(false);
-const registrationNameExists = ref<number>(false);
-const fileNotSelected = ref<number>(false);
-const fileInput = ref<HTMLInputElement | null>(null);
+const podNodes = ref<TreeNode[]>([]);
+const loading = ref<boolean>(true);
+const pendingDelete = ref<boolean>(false);
+const name = ref<string>('');
+const selectedNodes = ref<TreeSelectionKeys>({});
+const hasSelection = computed(() => Object.keys(selectedNodes.value).length > 0);
+const visible = ref(false);
+const previewData = ref<Blob | undefined>(undefined);
+const previewType = ref('');
+const previewEnable = ref<boolean>(false);
+
 
 const toast = useToast();
 
-function resetErrorMessage(){
-  invalidRegistry.value=false;
-  invalidRegistration.value=false;
-  registrationNameExists.value=false;
+onMounted(() => {
+  restoreSession().then(() => {
+    updatePodTree();
+  });
+});
+
+function onNodeSelect(node: TreeNode){
+  previewEnable.value = true;
+  name.value = capitalizeFirstLetter(node.label ?? '');
+  previewData.value = undefined;
+  const headers = {
+    Accept: "text/turtle,application/*,image/*",
+/*    'Cache-Control': 'no-cache',
+    'Pragma': 'no-cache',
+    'Expires': '0'*/
+  };
+  session.authFetch({
+    url: node.key,
+    method: "GET",
+    headers,
+    responseType: "blob"
+  }).then(response => {
+    previewData.value = response.data;
+    previewType.value = String(response.headers["content-type"]).split(';')[0];
+  });
+
+
 }
-function resetData(){
-  registryName.value = '';
-  registrationName.value = '';
-  fileInput.value.value = '';
-  resetErrorMessage();
+function closeDialog(){
+  visible.value = false;
+  updatePodTree();
 }
-async function addRegistrationName(): Promise<void>{
-  resetErrorMessage();
-  const registry = registryName.value;
-  const registration = registrationName.value;
-  const isRegistrationExists = await registrationExists(registry,registration);
-  const input = (fileInput.value as HTMLInputElement);
+async function updatePodTree() {
+  loading.value = true;
+  podNodes.value = await getFullRegistry();
+  podNodes.value.sort((a, b) => {
+    if (a.label && b.label) {
+      return a.label.localeCompare(b.label);
+    }
+    return 0;
+  });
+  loading.value = false;
+}
 
-  if(!validateInput(registry)){
-    invalidRegistry.value=true;
-  }
-  else if(!validateInput(registration)){
-    invalidRegistration.value=true;
-  }
-  else if (!input){
-    fileNotSelected.value = true;
-  }
-  else if (isRegistrationExists){
-    registrationNameExists.value=true;
-  }
-  else {
-    if (!(await registryExists(registry))) { await createRegistry(registry);await updateProfileRegistry(registry); }
-    await createRegistration(registry, registration);
+function updateSelectedKeys(selectionKeys:TreeSelectionKeys){
+  selectedNodes.value = selectionKeys;
+  console.log(selectionKeys);
+}
 
-    if (input.files && input.files.length) {
-      try{
-        await Promise.all(
-            Array.from(input.files)
-                .map(file => uploadFile(file, registry, registration)));
+async function deleteSelectedNodes(){
+  const nodesUrisToBeDeleted: string[] =
+      Object.entries(selectedNodes.value).filter(([, value])=>value.checked).map(([key])=>
+      key);
+  // const podTree = podNodes.value;
 
+  nodesUrisToBeDeleted.sort((a, b) => {
+    const aSlashes = a.match(/\//)?.length ?? 0;
+    const bSlashes = b.match(/\//)?.length ?? 0;
+    const slashesDiff = bSlashes - aSlashes;
+    if (slashesDiff === 0) {
+      return a.localeCompare(b);
+    }
+    return slashesDiff;
+  }).reverse();
+
+  console.log("nodesUrisToBeDeleted", nodesUrisToBeDeleted);
+
+  confirm.require({
+    message: `Are you sure you want to delete ${nodesUrisToBeDeleted.length} entries?`,
+    header: 'Deletion',
+    icon: 'pi pi-exclamation-triangle',
+    rejectClass: 'p-button-secondary',
+    acceptClass: 'p-button-danger',
+    rejectLabel: 'Cancel',
+    acceptLabel: 'Delete',
+    accept: async () => {
+      loading.value = true;
+      pendingDelete.value = true;
+
+      try {
+        for (const uriToDelete of nodesUrisToBeDeleted) {
+          await deleteRegistry(uriToDelete);
+        }
         toast.add({
           severity: "success",
-          summary: "File successfully uploaded!",
+          summary: `${nodesUrisToBeDeleted.length} Entries deleted successfully!`,
           life: 5000,
         });
-        resetData();
-      }
-      catch(err){
+      } catch (err: unknown) {
         toast.add({
           severity: "error",
-          summary: "File is not uploaded",
+          summary: "Deletion failed!",
           life: 5000,
         });
+        console.error("[deleteSelectedNodes] Failed due to error: ", err);
       }
 
+      selectedNodes.value = {};
+      loading.value = false;
+      pendingDelete.value = false;
+      await updatePodTree();
+    },
+    reject: () => {
+      toast.add({ severity: 'info', summary: 'No changes', detail: 'No entries were deleted.', life: 3000 });
     }
-  }
-
+  });
 }
 
-function fileSelected(event: Event){
-  const file = (event.target as HTMLInputElement);
-  fileInput.value = file;
-  if(file){
-    fileNotSelected.value = false;
-  }
-  else{
-    fileNotSelected.value = true;
-  }
-}
 </script>
 
 <style>
+main{
+  --p-progressspinner-color-1: yellow;
+  --p-progressspinner-color-2: green;
+  --p-progressspinner-color-3: red;
+  --p-progressspinner-color-4: purple;
+}
 html {
   width: 100vw;
   height: 100vh;
   overscroll-behavior-y: contain;
 }
-
+@keyframes p-progress-spinner-dash {
+  100% {
+    stroke-dasharray: 89, 200;
+  }
+}
+@keyframes p-progress-spinner-color {
+  100%{
+    stroke: rgb(25, 91, 120);
+  }
+}
 body {
   overscroll-behavior-y: contain;
   margin: 0;
@@ -161,11 +212,10 @@ body {
   overflow-x: hidden;
   overflow-y: auto;
   background-color: var(--surface-b);
-  font-family: var(--font-family);
+  font-family: var(--font-family, Arial);
   font-weight: 400;
   color: var(--text-color);
 }
-
 /* Track */
 ::-webkit-scrollbar-track {
   border: none;

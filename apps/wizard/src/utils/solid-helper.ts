@@ -12,7 +12,7 @@ const { quad, blankNode, namedNode, literal, variable, defaultGraph } = DataFact
    */
   export const requestStore = async (uri: string, session: Session): Promise<ParsedN3 | null> => {
     try {
-      const rawRdf = await getResource(uri, session).then(({ data }) => data);
+      const rawRdf = await __getResource(uri, session);
       console.debug(
         "useOrganisationStore [DEBUG]: Parsing raw RDF",
         uri,
@@ -189,8 +189,13 @@ _:rename a solid:InsertDeletePatch;
         };
       }
 };
-export const updateProfileRegistryData = async(profileRegistryUri:string,registryName:string,session:Session)=> {
 
+/**
+ * @param profileRegistryUri
+ * @param registryName
+ * @param session
+ */
+export const addProfileRegistryData = async(profileRegistryUri:string, registryName:string, session:Session)=> {
   const patchBody = `
 @prefix solid:<http://www.w3.org/ns/solid/terms#>.
 @prefix interop:<${INTEROP()}>.
@@ -207,6 +212,122 @@ _:rename a solid:InsertDeletePatch;
     },
     data: patchBody
   });
+}
+/**
+ * @param profileRegistryUri
+ * @param dataRegistryUri
+ * @param session
+ */
+const __deleteProfileRegistryData = async(profileRegistryUri:string, dataRegistryUri: string, session:Session)=> {
+  const patchBody = `
+@prefix solid:<http://www.w3.org/ns/solid/terms#>.
+@prefix interop:<${INTEROP()}>.
+
+_:rename a solid:InsertDeletePatch;
+    solid:deletes {
+      <#set>  <${INTEROP("hasDataRegistry")}> <${dataRegistryUri}> .
+    } .`;
+  await session.authFetch({
+    url:  profileRegistryUri,
+    method: "PATCH",
+    headers: {
+      "Content-Type": "text/n3",
+    },
+    data: patchBody
+  });
+}
+
+/**
+ * @param registryUri
+ * @param dataRegistrationUri
+ * @param session
+ */
+const __deleteDataRegistryData = async(registryUri: string, dataRegistrationUri: string, session:Session)=> {
+  const patchBody = `
+@prefix solid:<http://www.w3.org/ns/solid/terms#>.
+@prefix interop:<${INTEROP()}>.
+
+_:rename a solid:InsertDeletePatch;
+    solid:deletes {
+      <${registryUri}> <${INTEROP("hasDataRegistration")}> <${dataRegistrationUri}> .
+    } .`;
+  await session.authFetch({
+    url:  `${registryUri}.meta`,
+    method: "PATCH",
+    headers: {
+      "Content-Type": "text/n3",
+    },
+    data: patchBody
+  });
+}
+
+/**
+ * Fetches the children of a single registry, registration or registry set.
+ *
+ * @param uri
+ * @param session
+ */
+export const getRegistryResource = async (uri:string, session:Session): Promise<string[]> => {
+  let store = await requestStore(uri,session);
+  if (store === null) {
+    // Fallback for binary files like PDFs
+    store = await requestStore(`${uri}.meta`,session);
+  }
+  const types: string[] = __getObjectValues(null,RDF("type"),store);
+  let urls: string[] = [];
+
+  if( types.includes(INTEROP("RegistrySet") )){
+    urls = __getObjectValues(null, INTEROP("hasDataRegistry"),store);
+  }
+  else if( types.includes(INTEROP("DataRegistry") )){
+    urls = __getObjectValues(null, INTEROP("hasDataRegistration"),store);
+  }
+  else if( types.includes(INTEROP("DataRegistration") )){
+    urls = __getObjectValues(null, LDP("contains"),store);
+  }
+
+  return urls;
+};
+
+export const deleteRegistryResource = async (profileRegistryUri: string, uri: string, session: Session): Promise<void> => {
+  let store = await requestStore(uri, session);
+  if (store === null) {
+    // Fallback for binary files like PDFs
+    store = await requestStore(`${uri}.meta`,session);
+  }
+  if (store === null) {
+    // Fallback to remove meta data only without knowing the type
+    await __deleteProfileRegistryData(profileRegistryUri, uri, session).catch(() => null);
+    const registryUrl = `${uri.split("/").slice(0, -2).join("/")}/`
+    await __deleteDataRegistryData(registryUrl, uri, session).catch(() => null);
+    return;
+  }
+
+  const types: string[] = __getObjectValues(null,RDF("type"), store);
+
+  if(types.includes(INTEROP("DataRegistry") )){
+    await __deleteProfileRegistryData(profileRegistryUri, uri, session).catch(() => null);
+  }
+
+  if( types.includes(INTEROP("DataRegistration") )){
+    // remove trailing Slash /
+    // remove Data Registration name from URL
+    // From: "https://sme.solid.aifb.kit.edu/user12/user12Data/"
+    // To  : "https://sme.solid.aifb.kit.edu/user12/"
+    const registryUrl = `${uri.split("/").slice(0, -2).join("/")}/`
+    await __deleteDataRegistryData(registryUrl, uri, session).catch(() => null);
+  }
+
+  await session.authFetch({url: uri, method: 'DELETE'});
+};
+
+const __getResource = async(uri:string, session:Session)=> {
+  const headers = {
+    'Cache-Control': 'no-cache',
+    'Pragma': 'no-cache',
+    'Expires': '0',
+  };
+  return await getResource(uri, session, headers).then(({ data }) => data);
 }
 /**
  * Verifies if the given URI is a DataRegistry by checking the entity's type.
@@ -636,7 +757,7 @@ const __createDataRegistryRdf = async (
    * @returns sample `[ "http://www.w3.org/ns/ldp#Resource", "http://www.w3.org/ns/iana/media-types/application/pdf#Resource" ]`
    */
   const __getObjectValues = (
-    uri: string,
+    uri: string | null = null,
     keyName: string | null = null,
     parsedN3: ParsedN3 | null = null
   ): string[] => {
