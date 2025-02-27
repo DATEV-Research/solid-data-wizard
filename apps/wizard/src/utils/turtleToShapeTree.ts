@@ -1,6 +1,6 @@
 import {convertToType} from "@/utils/convertToType";
 
-export function turtleToShapeTree(content:string): {shape:string, name:string}{
+export function turtleToShapeTree(content:string): {shape:string | null, name:string | null} {
     const lines = content.split('\n');
     const prefixPattern = /@prefix\s+(\w+):\s+<([^>]+)>/;
     const linePattern =  /([a-zA-Z0-9]+):([a-zA-Z0-9]+)\s+([\d.]+|".*?")/;
@@ -27,13 +27,13 @@ export function turtleToShapeTree(content:string): {shape:string, name:string}{
     let lastLine = shapedContent[shapedContent.length-1];
     let counter = 1;
     if(shapeName === 'unknown'){
-        throw new Error('Error: No shape name found');
+        return { 'shape': shapedContent.join('\n').concat('\n}'), "name": null};
     }
     while(!lastLine.match(semiColonPattern)){
         counter++;
         lastLine = shapedContent[shapedContent.length- counter];
         if(counter > shapedContent.length){
-            throw new Error('Error: No closing semi colon found');
+            return { 'shape': null, "name": shapeName};
         }
     }
     shapedContent[shapedContent.length- counter] = lastLine.replace(semiColonPattern,'');

@@ -142,7 +142,23 @@ function createShapeContent(file:Blob){
   reader.onload = function (e) {
     const turtleFileContent = e.target.result.toString();
     const shapeTree = turtleToShapeTree(turtleFileContent);
-    shapeContent.value = shapeTree.shape;
+    if(!shapeTree.shape){
+      toast.add({
+        severity: "error",
+        summary: "Closing semi colon is not found. Shape file is not created",
+        life: 5000,
+      });
+    }
+    else if (!shapeTree.name){
+      toast.add({
+        severity: "error",
+        summary: "Shape name is not found. Shape file is not created.",
+        life: 5000,
+      });
+    }
+    else{
+      shapeContent.value = shapeTree.shape;
+    }
   }
   reader.readAsText(file);
 }
@@ -222,25 +238,6 @@ function toggleShapeContentView(){
             <span v-show="dirty && invalidRegistration" class="text-red-500 mt-2">Invalid DataRegistration name. Allowed characters: a-Z_0-9</span>
             <span v-show="dirty && registrationNameExists" class="text-red-500">DataRegistration Name already used.</span>
           </div>
-<!--          <div class="col-12">
-            <input ref="fileInput" type="file" @change="onFileSelect" />
-          </div>
-          <div class="col-12" v-if="ttlUpload">
-            <Checkbox v-model="uploadShapeFile" :binary="true"/>
-            <label> Upload shape file</label>
-&lt;!&ndash;            <transition name="fade">
-            <div v-show="!uploadShapeFile" >
-              <edit-shape-content :content="shapeContent" />
-            </div>
-            </transition>&ndash;&gt;
-            <div class="col-12" v-if="uploadShapeFile" >
-              <input ref="shapeFileInput" type="file" @change="onShapeFileSelect"/>
-            </div>
-          </div>
-          <div class="col-12">
-            <span v-show="dirty && fileNotSelected" class="text-red-500">No file selected.</span>
-          </div>-->
-
           <div class="col-12 text-right">
             <Button class="mr-2" severity="secondary" @click="closeDialog"
             >Cancel</Button>

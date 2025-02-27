@@ -11,5 +11,5 @@ export function convertToType(value:string){
     if(value.includes('.')){
         return "decimal";
     }
-    return "decimal";
+    return "IRI";
 }
