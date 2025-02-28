@@ -1,41 +1,40 @@
-import {convertToType} from "@/utils/convertToType";
+import N3, {Prefixes} from "n3";
 
-export function turtleToShapeTree(content:string): {shape:string | null, name:string | null} {
-    const lines = content.split('\n');
-    const prefixPattern = /@prefix\s+(\w+):\s+<([^>]+)>/;
-    const linePattern =  /([a-zA-Z0-9]+):([a-zA-Z0-9]+)\s+([\d.]+|".*?")/;
-    const typePattern = /a\s+([a-zA-Z0-9]+):([a-zA-Z0-9]+)/;
-    let shapeName = 'unknown';
-    const shapedContent =  lines.map(line => {
-        const prefixMatch = line.match(prefixPattern);
-        const lineMatch = line.match(linePattern);
-        const typeMatch = line.match(typePattern);
-        if (prefixMatch) {
-            return `PREFIX ${prefixMatch[1]}: <${prefixMatch[2]}>`;
+export function getPrefiex(prefixes:Prefixes){
+   return Object.keys(prefixes).map(prefix => `PREFIX ${prefix}: <${prefixes[prefix]}>`).join('\n');
+}
+
+export function getQuads(quad:any){
+        try {
+            const propertyName = quad.predicate.value.split('#')[1];
+            const propertyType = quad.object.datatypeString.split('#')[1];
+            return `\t${propertyName} xsd:${propertyType} ;\n`;
+        } catch (err) {
+            const object = quad.object.value;
+            const objectName = object.split('#')[1];
+            const objectValue = object.substring(object.lastIndexOf('/') + 1);
+            return `}\n\n<#${objectName}> {\n\ta \t[${objectValue}] ;\n`;
         }
-        if( lineMatch){
-            const type = convertToType(lineMatch[3].trim());
-            return `\t ${lineMatch[1].trim()}:${lineMatch[2].trim()} xsd:${type} ;`
-        }
-        if(typeMatch){
-            shapeName = typeMatch[2];
-            return `<#${typeMatch[2]}Shape> {\n\ta [${typeMatch[1]}:${typeMatch[2]}] ;`
-        }
-        return '';
+}
+
+export async function turtleToShape(turtleContent: string ): Promise<string>{
+    return new Promise((resolve, reject) => {
+        const turtleData = turtleContent;
+        const parser = new N3.Parser();
+        let quads = "";
+        let prefixContent = '';
+        parser.parse(turtleData, (error, quad, prefixes) => {
+            if (prefixes) {
+                prefixContent = getPrefiex(prefixes);
+            }
+            if (quad) {
+                quads += getQuads(quad);
+            }
+            else {
+                const quadValue = `${quads.substring(1)}\n}`
+                const content = `${prefixContent}\n${quadValue}`;
+                resolve(content);
+            }
+        });
     });
-    const semiColonPattern = /;$/;
-    let lastLine = shapedContent[shapedContent.length-1];
-    let counter = 1;
-    if(shapeName === 'unknown'){
-        return { 'shape': shapedContent.join('\n').concat('\n}'), "name": null};
-    }
-    while(!lastLine.match(semiColonPattern)){
-        counter++;
-        lastLine = shapedContent[shapedContent.length- counter];
-        if(counter > shapedContent.length){
-            return { 'shape': null, "name": shapeName};
-        }
-    }
-    shapedContent[shapedContent.length- counter] = lastLine.replace(semiColonPattern,'');
-    return { 'shape': shapedContent.join('\n').concat('\n}'), "name": shapeName};
 }

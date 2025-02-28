@@ -8,9 +8,10 @@ import {useToast} from "primevue/usetoast";
 import {computed, ref} from "vue";
 import {getFileExtension} from "@/utils/fileExtension";
 import {TTL_EXTENSION} from "@/constants/extensions";
-import {turtleToShapeTree} from "@/utils/turtleToShapeTree";
+import {turtleToShape} from "@/utils/turtleToShapeTree";
 import EditShapeContent from "@/components/editShapeContent.vue";
 
+const N3 = require('n3');
 
 const SHAPE_TREE_CONTAINER_URI = "https://sme.solid.aifb.kit.edu/shapetrees/"
 
@@ -136,30 +137,14 @@ function onFileSelect(event: Event) {
     }
   }
 }
-
 function createShapeContent(file:Blob){
   const reader = new FileReader();
-  reader.onload = function (e) {
-    const turtleFileContent = e.target.result.toString();
-    const shapeTree = turtleToShapeTree(turtleFileContent);
-    if(!shapeTree.shape){
-      toast.add({
-        severity: "error",
-        summary: "Closing semi colon is not found. Shape file is not created",
-        life: 5000,
-      });
+  reader.onload = async function(event) {
+    const content = event.target?.result.toString();
+    if(content){
+      shapeContent.value= await turtleToShape(content);
     }
-    else if (!shapeTree.name){
-      toast.add({
-        severity: "error",
-        summary: "Shape name is not found. Shape file is not created.",
-        life: 5000,
-      });
-    }
-    else{
-      shapeContent.value = shapeTree.shape;
-    }
-  }
+  };
   reader.readAsText(file);
 }
 function onShapeFileSelect(){
