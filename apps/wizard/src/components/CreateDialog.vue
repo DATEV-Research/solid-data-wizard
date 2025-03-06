@@ -53,9 +53,6 @@ const toggleShapeContent = ref<boolean>(false);
 const isSubmitDisabled = ref<boolean>(true);
 
 const toast = useToast();
-function onUploadShapeFile(){
-  ttlUpload.value = !ttlUpload.value;
-}
 function resetErrorMessage() {
   dirty.value = false;
 }

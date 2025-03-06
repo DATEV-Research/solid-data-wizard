@@ -18,7 +18,7 @@ export function getQuads(quad:any){
             const object = quad.object.value;
             const objectName = object.split('#')[1];
             const objectValue = object.substring(object.lastIndexOf('/') + 1).replace('#',':');
-            return `}\n\n<#${objectName}> {\n\ta \t[${objectValue}] ;\n`;
+            return `}\n\n<#${objectName}Shape> {\n\ta \t[${objectValue}] ;\n`;
         }
 }
 
