@@ -12,11 +12,12 @@ import {isValidTurtle, turtleToShape} from "@/utils/turtleToShapeTree";
 import EditShapeContent from "@/components/editShapeContent.vue";
 import {fileSizeExceeded} from "@/utils/fileSize";
 
+
 const N3 = require('n3');
 
 const SHAPE_TREE_CONTAINER_URI = "https://sme.solid.aifb.kit.edu/shapetrees/"
 
-const { createRegistry, createRegistration,updateACLPermission, registryExists, createShape, createShapeTree, registrationExists, uploadFile, updateProfileRegistry } = useOrganisationStore();
+const { createRegistry, createRegistration,updateACLPermission, registryExists, createShape, createShapeTree, registrationExists, uploadFile, updateProfileRegistry, createShapeTreeContainer, shapeTreeContainerExists } = useOrganisationStore();
 
 const emit = defineEmits<{
   (e: "registryCreated", value: boolean): void;
@@ -92,7 +93,10 @@ async function addRegistrationName(): Promise<void>{
     await createRegistry(registry);
     await updateProfileRegistry(registry);
   }
-
+  const shapeTree = "shapetrees";
+  if (!(await shapeTreeContainerExists(shapeTree))) {
+    await createShapeTreeContainer(shapeTree);
+  }
   await createRegistration(registry, registration);
 
   if (input && input.files && input.files.length) {

@@ -8,8 +8,12 @@ import {
   createDataRegistration,
   verifyDataRegistration,
   applyShapeTree,
-  addProfileRegistryData, getRegistryResource, deleteRegistryResource,
-  updateRegistryACLPermission, updateRegistrationACLPermission
+  addProfileRegistryData,
+  getRegistryResource,
+  deleteRegistryResource,
+  updateRegistryACLPermission,
+  updateRegistrationACLPermission,
+  updateShapeTreeContainerACLPermission, createShapeTreeContainerData
 } from "@/utils/solid-helper";
 import {
   useIsLoggedIn,
@@ -112,6 +116,11 @@ export const useOrganisationStore = () => {
     },
     updateProfileRegistry: async (registryName: string) => {
       await addProfileRegistryData(`${SOLID_PROFILE_REGISTRY_URI}`,registryName, session);
+    },
+    shapeTreeContainerExists: (shapeTreeName: string) => uriExists(`${organisationStorageUri.value}${shapeTreeName}/`, session),
+    createShapeTreeContainer: async (shapeTree:string) => {
+      await createShapeTreeContainerData(`${organisationStorageUri.value}`, shapeTree, session);
+      await updateShapeTreeContainerACLPermission(`${organisationStorageUri.value}${shapeTree}/`,shapeTree, session);
     },
     createRegistration: async (registryName: string, registrationName: string) => {
       const { rdf: registrationRdf, uri: registrationUri } = await createDataRegistration(`${organisationStorageUri.value}${registryName}/`, registrationName, session);
