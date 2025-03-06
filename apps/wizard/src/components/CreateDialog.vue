@@ -10,11 +10,12 @@ import {getFileExtension} from "@/utils/fileExtension";
 import {TTL_EXTENSION} from "@/constants/extensions";
 import {isValidTurtle, turtleToShape} from "@/utils/turtleToShapeTree";
 import EditShapeContent from "@/components/editShapeContent.vue";
+import {fileSizeExceeded} from "@/utils/fileSize";
 
 const N3 = require('n3');
 
 const SHAPE_TREE_CONTAINER_URI = "https://sme.solid.aifb.kit.edu/shapetrees/"
-const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2 MB
+
 const { createRegistry, createRegistration,updateACLPermission, registryExists, createShape, createShapeTree, registrationExists, uploadFile, updateProfileRegistry } = useOrganisationStore();
 
 const emit = defineEmits<{
@@ -125,32 +126,32 @@ async function addRegistrationName(): Promise<void>{
   }
   loading.value = false;
 }
-function checkFileSize(file){
-    if (file.size > MAX_FILE_SIZE) {
-      return true;
-    } else {
-      return false;
-    }
-
-}
 
 function onFileSelect(event: Event) {
   const file = event.target.files[0];
   if (file) {
-    if(checkFileSize(file)){
-
-    }
-    const fileName = file.name;
-    isSubmitDisabled.value = false;
-    if(getFileExtension(fileName) === TTL_EXTENSION) {
-      ttlUpload.value = true;
-      if (!shapeFileInput.value?.files.length) {
-        createShapeContent(file);
+    if(fileSizeExceeded(file.size)){
+      const fileName = file.name;
+      isSubmitDisabled.value = false;
+      if(getFileExtension(fileName) === TTL_EXTENSION) {
+        ttlUpload.value = true;
+        if (!shapeFileInput.value?.files.length) {
+          createShapeContent(file);
+        }
+      }
+      else{
+        hideTTLDiv();
       }
     }
     else{
       hideTTLDiv();
+      toast.add({
+        severity: "error",
+        summary: "File size exceed 2 MB limit",
+        life: 5000,
+      });
     }
+
   }
   else{
     hideTTLDiv();
@@ -226,7 +227,7 @@ function toggleShapeContentView(){
           <div class="grid col-6" v-if="ttlUpload">
            <div class="col-12"><Checkbox v-model="uploadShapeFile" :binary="true"/>
             <label> Upload shape file</label></div>
-            <div class="col-12" v-if="uploadShapeFile" ><input ref="shapeFileInput" type="file" @change="onShapeFileSelect"/></div>
+            <div class="col-12" v-if="uploadShapeFile" ><input ref="shapeFileInput" type="file" @change="onShapeFileSelect" accept=".shape"/></div>
             <div class="col-12" v-else @click="toggleShapeContentView"><a> View Created shape file</a></div>
           </div>
           <div class="col-12" v-show="toggleShapeContent">
