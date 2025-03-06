@@ -8,13 +8,13 @@ import {useToast} from "primevue/usetoast";
 import {computed, ref} from "vue";
 import {getFileExtension} from "@/utils/fileExtension";
 import {TTL_EXTENSION} from "@/constants/extensions";
-import {turtleToShape} from "@/utils/turtleToShapeTree";
+import {isValidTurtle, turtleToShape} from "@/utils/turtleToShapeTree";
 import EditShapeContent from "@/components/editShapeContent.vue";
 
 const N3 = require('n3');
 
 const SHAPE_TREE_CONTAINER_URI = "https://sme.solid.aifb.kit.edu/shapetrees/"
-
+const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2 MB
 const { createRegistry, createRegistration,updateACLPermission, registryExists, createShape, createShapeTree, registrationExists, uploadFile, updateProfileRegistry } = useOrganisationStore();
 
 const emit = defineEmits<{
@@ -49,6 +49,7 @@ const shapeContent = ref('');
 
 const uploadShapeFile = ref<boolean>(false);
 const toggleShapeContent = ref<boolean>(false);
+const isSubmitDisabled = ref<boolean>(true);
 
 const toast = useToast();
 function onUploadShapeFile(){
@@ -124,25 +125,60 @@ async function addRegistrationName(): Promise<void>{
   }
   loading.value = false;
 }
+function checkFileSize(file){
+    if (file.size > MAX_FILE_SIZE) {
+      return true;
+    } else {
+      return false;
+    }
+
+}
 
 function onFileSelect(event: Event) {
   const file = event.target.files[0];
   if (file) {
+    if(checkFileSize(file)){
+
+    }
     const fileName = file.name;
+    isSubmitDisabled.value = false;
     if(getFileExtension(fileName) === TTL_EXTENSION) {
       ttlUpload.value = true;
       if (!shapeFileInput.value?.files.length) {
         createShapeContent(file);
       }
     }
+    else{
+      hideTTLDiv();
+    }
   }
+  else{
+    hideTTLDiv();
+  }
+}
+function hideTTLDiv(){
+  ttlUpload.value = false;
+  toggleShapeContent.value = false;
 }
 function createShapeContent(file:Blob){
   const reader = new FileReader();
   reader.onload = async function(event) {
     const content = event.target?.result.toString();
+
     if(content){
-      shapeContent.value= await turtleToShape(content);
+      if(isValidTurtle(content)){
+        isSubmitDisabled.value = false;
+        shapeContent.value= await turtleToShape(content);
+      }
+      else{
+        isSubmitDisabled.value = true;
+        shapeContent.value = '';
+        toast.add({
+          severity: "error",
+          summary: "Invalid Turtle file",
+          life: 5000,
+        });
+      }
     }
   };
   reader.readAsText(file);
@@ -226,7 +262,7 @@ function toggleShapeContentView(){
           <div class="col-12 text-right">
             <Button class="mr-2" severity="secondary" @click="closeDialog"
             >Cancel</Button>
-            <Button class="ml-2" label="Submit" @click="addRegistrationName" :loading="loading"
+            <Button class="ml-2" :severity="isSubmitDisabled ? 'secondary': 'primary'" :disabled ="isSubmitDisabled" label="Submit" @click="addRegistrationName" :loading="loading"
             ></Button>
           </div>
         </div>
