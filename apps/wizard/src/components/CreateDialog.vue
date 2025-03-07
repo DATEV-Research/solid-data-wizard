@@ -11,6 +11,7 @@ import {TTL_EXTENSION} from "@/constants/extensions";
 import {isValidTurtle, turtleToShape} from "@/utils/turtleToShapeTree";
 import EditShapeContent from "@/components/editShapeContent.vue";
 import {fileSizeExceeded} from "@/utils/fileSize";
+import {validateFileName} from "@/utils/validateFileName";
 
 
 const N3 = require('n3');
@@ -130,29 +131,31 @@ async function addRegistrationName(): Promise<void>{
 
 function onFileSelect(event: Event) {
   const file = event.target.files[0];
-  if (file) {
-    if(fileSizeExceeded(file.size)){
-      const fileName = file.name;
-      isSubmitDisabled.value = false;
-      if(getFileExtension(fileName) === TTL_EXTENSION) {
-        ttlUpload.value = true;
-        if (!shapeFileInput.value?.files.length) {
-          createShapeContent(file);
-        }
-      }
-      else{
-        hideTTLDiv();
-      }
-    }
-    else{
-      hideTTLDiv();
-      toast.add({
-        severity: "error",
-        summary: "File size exceed 2 MB limit",
-        life: 5000,
-      });
-    }
+  if (file) if (!validateFileName(file.name)) {
 
+    toast.add({
+      severity: "error",
+      summary: "Invalid file name. Allowed characters: a-Z_0-9_.-()",
+      life: 5000,
+    });
+  } else if (fileSizeExceeded(file.size)) {
+    const fileName = file.name;
+    isSubmitDisabled.value = false;
+    if (getFileExtension(fileName) === TTL_EXTENSION) {
+      ttlUpload.value = true;
+      if (!shapeFileInput.value?.files.length) {
+        createShapeContent(file);
+      }
+    } else {
+      hideTTLDiv();
+    }
+  } else {
+    hideTTLDiv();
+    toast.add({
+      severity: "error",
+      summary: "File size exceed 2 MB limit",
+      life: 5000,
+    });
   }
   else{
     hideTTLDiv();
