@@ -345,6 +345,32 @@ export const verifyDataRegistry = async (registryUri: string, session: Session) 
     return false;
 }
 
+export const createShapeTreeContainerData = async (containerURI: string, shapeName: string, session:Session) =>{
+  // 1) Create Basic Container
+  const { rdf: shapeTreeRdf, uri: shapeTreeUri } = await __createShapeTreeRdf(containerURI, shapeName);
+
+  if (!(await uriExists(shapeTreeUri, session))) {
+
+    // 1) Create Basic Container
+    const response = await session.authFetch({
+      url: shapeTreeUri,
+      method: "PUT",
+      headers: {
+        "Content-Type": "text/turtle",
+
+        // NOTE this somehow does not really work, because the server cannot identify it as a container.
+        // "Link": `<${INTEROP("DataRegistration")}>; rel="type"`,
+
+        // NOTE This will cause the solid-server to IGNORE the whole RDF
+        "Link": `<${LDP("BasicContainer")}>; rel="type"`,
+
+        // "Slug": registrationName,
+      },
+      data: shapeTreeRdf,
+    });
+  }
+}
+
 /**
  * creates a new data-registration if it does not exist already.
  * @param registryUri 
@@ -427,6 +453,105 @@ _:rename a solid:InsertDeletePatch;
     }
 }
 
+export const updateRegistryACLPermission = async(uri:string, registryName:string, session:Session) => {
+  const aclURI = uri + '.acl';
+  const patchBody = `@prefix : <#>.
+      @prefix acl: <http://www.w3.org/ns/auth/acl#>.
+      @prefix foaf: <http://xmlns.com/foaf/0.1/>.
+      @prefix ${registryName}: <./>.
+      @prefix c: </profile/card#>.
+  
+      :ControlReadWrite
+          a acl:Authorization;
+          acl:accessTo ${registryName}:;
+          acl:agent c:me, <mailto:info@sme.com>;
+          acl:default ${registryName}:;
+          acl:mode acl:Control, acl:Read, acl:Write.
+      :Read
+          a acl:Authorization;
+          acl:accessTo ${registryName}:;
+          acl:agentClass foaf:Agent;
+          acl:default ${registryName}:;
+          acl:mode acl:Read.
+      `
+;
+      await session.authFetch({
+        url: aclURI,
+        method: "PUT",
+        headers: {
+          "Content-type": "text/n3",
+        },
+        data: patchBody
+      });
+}
+export const updateShapeTreeContainerACLPermission = async(uri:string, shapeTreeName:string, session:Session) => {
+  const aclURI = uri + '.acl';
+  const patchBody = `
+    @prefix : <#>.
+    @prefix acl: <http://www.w3.org/ns/auth/acl#>.
+    @prefix foaf: <http://xmlns.com/foaf/0.1/>.
+    @prefix ${shapeTreeName}: <./>.
+    @prefix c: </profile/card#>.
+    
+    :ControlReadWriteDefault
+      a acl:Authorization;
+      acl:default ${shapeTreeName}:;
+      acl:accessTo ${shapeTreeName}:;
+      acl:agent c:me, <mailto:info@sme.com>;
+      acl:mode acl:Control, acl:Read, acl:Write.
+    
+    :ReadWriteDefault
+      a acl:Authorization;
+      acl:accessTo ${shapeTreeName}:;
+      acl:agentClass foaf:Agent;
+      acl:default ${shapeTreeName}:;
+      acl:mode acl:Read, acl:Write.
+      `
+  ;
+  await session.authFetch({
+    url: aclURI,
+    method: "PUT",
+    headers: {
+      "Content-type": "text/n3",
+    },
+    data: patchBody
+  });
+}
+export const updateRegistrationACLPermission = async(uri:string, registrationName:string, session:Session) => {
+  const aclURI = uri + '.acl';
+  const patchBody = `@prefix : <#>.
+    @prefix acl: <http://www.w3.org/ns/auth/acl#>.
+    @prefix foaf: <http://xmlns.com/foaf/0.1/>.
+    @prefix ${registrationName}: <./>.
+    @prefix c: </profile/card#>.
+    
+    :ControlReadWrite
+        a acl:Authorization;
+        acl:accessTo ${registrationName}:;
+        acl:agent c:me, <mailto:info@sme.com>;
+        acl:mode acl:Control, acl:Read, acl:Write.
+    :ControlReadWriteDefault
+        a acl:Authorization;
+        acl:agent c:me, <mailto:info@sme.com>;
+        acl:default ${registrationName}:;
+        acl:mode acl:Control, acl:Read, acl:Write.
+    :Read
+        a acl:Authorization;
+        acl:accessTo ${registrationName}:;
+        acl:agentClass foaf:Agent;
+        acl:mode acl:Read.
+      `
+  ;
+  await session.authFetch({
+    url: aclURI,
+    method: "PUT",
+    headers: {
+      "Content-type": "text/n3",
+    },
+    data: patchBody
+  });
+}
+
 /**
  * Verifies if the given URI is a DataRegistry by checking the entity's type.
  * @param registrationUri 
@@ -486,8 +611,68 @@ export const createDataInstance = async (registrationUri: string, body: any, mim
 
   return response.headers["location"];
 };
+const __createShapeTreeRdf = async(storageUri: string, shapeTreeName: string): Promise<{ rdf: string, uri: string }> =>{
 
+return new Promise((resolve, reject) => {
+  const uri = `${storageUri}${shapeTreeName}/`;
+  const now = new Date();
+  const nowUtcString = now.toISOString();
+  const nowTimestampString = Math.floor(now.getTime() / 1000);
 
+  const writer = new Writer({
+    format: "text/turtle",
+    prefixes: {
+      interop: INTEROP(),
+      ldp: LDP(),
+      dc: DCT(),
+      xsd: XSD(),
+    },
+  });
+
+  writer.addQuads(
+      [
+        // define own types
+        quad(
+            namedNode(uri),
+            namedNode(RDF("type")),
+            namedNode(LDP("Container")),
+            defaultGraph()
+        ),
+        quad(
+            namedNode(uri),
+            namedNode(RDF("type")),
+            namedNode(LDP("BasicContainer")),
+            defaultGraph()
+        ),
+        quad(
+            namedNode(uri),
+            namedNode(RDF("type")),
+            namedNode(LDP("Resource")),
+            defaultGraph()
+        ),
+        quad(
+            namedNode(uri),
+            namedNode(DCT("modified")),
+            literal(nowUtcString/*, "xsd:dateTime"*/),
+            defaultGraph()
+        ),
+        quad(
+            namedNode(uri),
+            namedNode("http://www.w3.org/ns/posix/stat#mtime"),
+            literal(nowTimestampString),
+            defaultGraph()
+        ),
+      ]
+  );
+  writer.end((error, resultRdf) => {
+    if (error) {
+      reject(error);
+    } else {
+      resolve({ rdf: resultRdf.replace(new RegExp(uri, "g"), ""), uri });
+    }
+  });
+});
+}
   /**
    * Create RDF for a new Data Registry
    * @param storageUri

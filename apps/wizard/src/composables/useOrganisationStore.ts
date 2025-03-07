@@ -8,7 +8,12 @@ import {
   createDataRegistration,
   verifyDataRegistration,
   applyShapeTree,
-  addProfileRegistryData, getRegistryResource, deleteRegistryResource
+  addProfileRegistryData,
+  getRegistryResource,
+  deleteRegistryResource,
+  updateRegistryACLPermission,
+  updateRegistrationACLPermission,
+  updateShapeTreeContainerACLPermission, createShapeTreeContainerData
 } from "@/utils/solid-helper";
 import {
   useIsLoggedIn,
@@ -16,11 +21,13 @@ import {
   useSolidSession,
 } from "@datev-research/mandat-shared-composables";
 import {
-  ParsedN3,
+  ParsedN3, putResource,
   SPACE,
 } from "@datev-research/mandat-shared-solid-requests";
 import {TreeNode} from "primevue/treenode";
 import { computed, ref, watch } from "vue";
+import {getFileExtension} from "@/utils/fileExtension";
+import {TTL_EXTENSION} from "@/constants/extensions";
 
 /**
  * TODOs
@@ -101,8 +108,19 @@ export const useOrganisationStore = () => {
         throw new Error("UnexpectedError: registry Type is not set correctly, after creating it.");
       }
     },
+    createShape: async (uri:string, contentShape:string, headers: Record<string, string>)=>{
+      await putResource(uri,contentShape,session, headers);
+    },
+    createShapeTree:async (uri:string, contentShapeTree:string, headers: Record<string, string>)=>{
+      await putResource(uri,contentShapeTree,session, headers);
+    },
     updateProfileRegistry: async (registryName: string) => {
       await addProfileRegistryData(`${SOLID_PROFILE_REGISTRY_URI}`,registryName, session);
+    },
+    shapeTreeContainerExists: (shapeTreeName: string) => uriExists(`${organisationStorageUri.value}${shapeTreeName}/`, session),
+    createShapeTreeContainer: async (shapeTree:string) => {
+      await createShapeTreeContainerData(`${organisationStorageUri.value}`, shapeTree, session);
+      await updateShapeTreeContainerACLPermission(`${organisationStorageUri.value}${shapeTree}/`,shapeTree, session);
     },
     createRegistration: async (registryName: string, registrationName: string) => {
       const { rdf: registrationRdf, uri: registrationUri } = await createDataRegistration(`${organisationStorageUri.value}${registryName}/`, registrationName, session);
@@ -117,14 +135,23 @@ export const useOrganisationStore = () => {
           session,
       );
     },
-    
-    uploadFile: (file: File, registryName: string, registrationName: string) => createNamedDataInstance(
-        `${organisationStorageUri.value}${registryName}/${registrationName}`,
-        file.name,
-        file,
-        file.type,
-        session
-    ),
+    updateACLPermission: async (registryName: string, registrationName:string) => {
+      await updateRegistryACLPermission(`${organisationStorageUri.value}${registryName}/`,registryName, session);
+      await updateRegistrationACLPermission(`${organisationStorageUri.value}${registryName}/${registrationName}/`,registrationName, session);
+    },
+    uploadFile: (file: File, registryName: string, registrationName: string) => {
+      let mimeType = file.type;
+      if(getFileExtension(file.name) === TTL_EXTENSION){
+        mimeType = "text/turtle";
+      }
+      createNamedDataInstance(
+          `${organisationStorageUri.value}${registryName}/${registrationName}`,
+          file.name,
+          file,
+          mimeType,
+          session
+      )
+    },
     deleteRegistry: async (registryUri: string) => {
       await deleteRegistryResource(SOLID_PROFILE_REGISTRY_URI, registryUri, session);
     },
