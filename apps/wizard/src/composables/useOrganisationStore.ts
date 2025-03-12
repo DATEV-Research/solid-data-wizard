@@ -13,7 +13,11 @@ import {
   deleteRegistryResource,
   updateRegistryACLPermission,
   updateRegistrationACLPermission,
-  updateShapeTreeContainerACLPermission, createShapeTreeContainerData
+  updateShapeTreeContainerACLPermission,
+  createShapeTreeContainerData,
+  getShapeFilesUri,
+  getShapeContent,
+  compareShapeContent
 } from "@/utils/solid-helper";
 import {
   useIsLoggedIn,
@@ -121,6 +125,11 @@ export const useOrganisationStore = () => {
     createShapeTreeContainer: async (shapeTree:string) => {
       await createShapeTreeContainerData(`${organisationStorageUri.value}`, shapeTree, session);
       await updateShapeTreeContainerACLPermission(`${organisationStorageUri.value}${shapeTree}/`,shapeTree, session);
+    },
+    allShapeFiles: async (shapeTree:string, shapeContent:string) => {
+      // get all the shape files URI present in the shapetrees container
+      const shapeURI = await getShapeFilesUri(`${organisationStorageUri.value}${shapeTree}/`, session);
+      await compareShapeContent(shapeURI,shapeContent, session);
     },
     createRegistration: async (registryName: string, registrationName: string) => {
       const { rdf: registrationRdf, uri: registrationUri } = await createDataRegistration(`${organisationStorageUri.value}${registryName}/`, registrationName, session);

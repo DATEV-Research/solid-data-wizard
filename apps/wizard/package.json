@@ -30,6 +30,7 @@
     "@datev-research/mandat-shared-solid-requests": "^1.0.2",
     "@datev-research/mandat-shared-theme": "^1.0.2",
     "@datev-research/mandat-shared-utils": "^1.0.3",
-    "github-fork-ribbon-css": "^0.2.3"
+    "github-fork-ribbon-css": "^0.2.3",
+    "shex": "^1.0.0-alpha.29"
   }
 }

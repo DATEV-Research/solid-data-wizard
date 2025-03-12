@@ -1,11 +1,24 @@
-import { Session } from '@datev-research/mandat-shared-solid-oidc';
-import { DCT, getResource, INTEROP, LDP, ParsedN3, parseToN3, putResource, RDF, XSD } from "@datev-research/mandat-shared-solid-requests";
+import {Session} from '@datev-research/mandat-shared-solid-oidc';
+import {
+  DCT,
+  getResource,
+  INTEROP,
+  LDP,
+  ParsedN3,
+  parseToN3,
+  putResource,
+  RDF,
+  XSD
+} from "@datev-research/mandat-shared-solid-requests";
 import axios from 'axios';
-import { DataFactory, Writer } from "n3";
+import {DataFactory, Writer} from "n3";
+import {Schema, ShapeDecl} from "shexj";
 
 const { quad, blankNode, namedNode, literal, variable, defaultGraph } = DataFactory;
+const ShExParser = require('@shexjs/parser');
 
-  /**
+
+/**
    * requests and returns a store if found. Otherwise it returns `null`.
    * @param uri the identifier URL like "https://sme.solid.aifb.kit.edu/shapetrees/d34a5437-fb1c-42dc-9338-79ab9f9ac849"
    * @returns Store object if URI is valid, otherwise null.
@@ -369,6 +382,100 @@ export const createShapeTreeContainerData = async (containerURI: string, shapeNa
       data: shapeTreeRdf,
     });
   }
+}
+export const getShapeFilesUri = async (uri: string, session: Session) => {
+  console.log("=>getShapeFiles", uri);
+    const store = await requestStore(uri, session);
+    console.log("=>store", store);
+    if (store === null) {
+        return [];
+    }
+    return __getObjectValues(null, LDP("contains"), store).filter(shape => shape.endsWith(".shape") ?? shape );
+}
+
+export const compareShapeContent = async (shapeUris:string[],localShapeContent:string,session: Session) =>{
+  shapeUris.map(async(uri)=>{
+    const remoteShapeContent:string = await getShapeContent(uri,session);
+    try{
+      // Compare remote shape file with the local shape file
+      const isFound = shapeFileFound(remoteShapeContent,localShapeContent);
+      console.log('Shape File found: ',isFound);
+      if(isFound)
+      {
+        // shape file found
+        console.log(uri);
+      }
+    }
+    catch (err){
+      console.log(err);
+    }
+
+  })
+}
+
+const isSchemaCountEqual = (remoteSchema:Schema,localSchema:Schema) => {
+  // count the number of schema in shape file of remote and local shape file
+  return remoteSchema.shapes?.length ===  localSchema.shapes?.length
+}
+const isSchemaContentSame = (remoteSchema:Schema,localSchema:Schema) => {
+  // check if the content of the schema are same in the both files
+    console.log(remoteSchema);
+    console.log(localSchema);
+    localSchema.shapes?.map((shape:ShapeDecl) => {
+     const localShapeName = shape.id;
+     const remoteShapeContent = remoteSchema.shapes?.find(schema => schema.id === localShapeName);
+     const localShapeExp = shape.shapeExpr as any;
+     const localShapeExpressions = localShapeExp.expression.expressions;
+
+      const remoteShapeExp = remoteShapeContent?.shapeExpr as any;
+      const remoteShapeExpressions = remoteShapeExp.expression.expressions;
+
+      return localShapeExpressions.map((localExp:any) => remoteShapeExpressions.find((remoteExp:any) => remoteExp.predicate === localExp.predicate )).length === localShapeExpressions?.length;
+
+     //console.log(remoteShapeContent);
+    })
+  return true;
+}
+const isSchemaNameSame = (remoteSchema:Schema,localSchema:Schema) => {
+  // check if the schema name are same in both files
+  return localSchema.shapes?.map((shape:ShapeDecl) => remoteSchema.shapes?.find(remoteShape => remoteShape.id ===shape.id)).length === localSchema.shapes?.length;
+}
+const shapeFileFound = (remoteShapeContent:string,localShapeContent:string) => {
+  // check if the shape file is found by comparing the shape file
+  const remoteSchema:Schema = ShExParser.construct().parse(remoteShapeContent);
+  const localSchema:Schema = ShExParser.construct().parse(localShapeContent);
+
+  // Check total schema are same in both files
+  if(isSchemaCountEqual(remoteSchema,localSchema)){
+    if(isSchemaNameSame(remoteSchema,localSchema))
+    {
+      if(isSchemaContentSame(remoteSchema,localSchema)){
+        return true
+      }
+    }
+  }
+  else{
+    return false;
+  }
+}
+
+export const getShapeContent = async (uri:string,session: Session): Promise<string> =>{
+  // Get the shape content from the shaptrees container
+  const headers = {
+    Accept: "text/turtle,application/*,image/*,application/octet-stream",
+    /*    'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache',
+        'Expires': '0'*/
+  };
+  return new Promise((resolve, reject) => {
+    session.authFetch({
+      url: uri,
+      method: "GET",
+      headers,
+    }).then(response => {
+      resolve(response.data);
+    });
+  });
 }
 
 /**

@@ -18,7 +18,7 @@ const N3 = require('n3');
 
 const SHAPE_TREE_CONTAINER_URI = "https://sme.solid.aifb.kit.edu/shapetrees/"
 
-const { createRegistry, createRegistration,updateACLPermission, registryExists, createShape, createShapeTree, registrationExists, uploadFile, updateProfileRegistry, createShapeTreeContainer, shapeTreeContainerExists } = useOrganisationStore();
+const { createRegistry, createRegistration,updateACLPermission, registryExists, createShape, createShapeTree, registrationExists, uploadFile, updateProfileRegistry, createShapeTreeContainer, shapeTreeContainerExists, allShapeFiles } = useOrganisationStore();
 
 const emit = defineEmits<{
   (e: "registryCreated", value: boolean): void;
@@ -129,7 +129,7 @@ async function addRegistrationName(): Promise<void>{
   loading.value = false;
 }
 
-function onFileSelect(event: Event) {
+async function onFileSelect(event: Event) {
   const file = event.target.files[0];
   if (file) if (!validateFileName(file.name)) {
 
@@ -171,16 +171,18 @@ function createShapeContent(file:Blob){
     const content = event.target?.result.toString();
 
     if(content){
-      if(isValidTurtle(content)){
+      const isValidTurtleContent = isValidTurtle(content);
+      if(isValidTurtleContent.success){
         isSubmitDisabled.value = false;
         shapeContent.value= await turtleToShape(content);
+        const shapes = await allShapeFiles('shapetrees', shapeContent.value);
       }
       else{
         isSubmitDisabled.value = true;
         shapeContent.value = '';
         toast.add({
           severity: "error",
-          summary: "Invalid Turtle file",
+          summary: isValidTurtleContent.message,
           life: 5000,
         });
       }
