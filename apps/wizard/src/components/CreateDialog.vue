@@ -18,7 +18,7 @@ const N3 = require('n3');
 
 const SHAPE_TREE_CONTAINER_URI = "https://sme.solid.aifb.kit.edu/shapetrees/"
 
-const { createRegistry, createRegistration,updateACLPermission, registryExists, createShape, createShapeTree, registrationExists, uploadFile, updateProfileRegistry, createShapeTreeContainer, shapeTreeContainerExists, allShapeFiles } = useOrganisationStore();
+const { createRegistry, createRegistration,updateACLPermission, registryExists, createShape, createShapeTree, registrationExists, uploadFile, updateProfileRegistry, createShapeTreeContainer,applyShapeTreeData, shapeTreeContainerExists, allShapeFiles } = useOrganisationStore();
 
 const emit = defineEmits<{
   (e: "registryCreated", value: boolean): void;
@@ -80,12 +80,14 @@ async function addRegistrationName(): Promise<void>{
   resetErrorMessage();
   dirty.value = true;
 
+    const shapeTree = "shapetrees";
+  if (!(await shapeTreeContainerExists(shapeTree))) {
+    await createShapeTreeContainer(shapeTree);
+  }
   if (isInvalid.value) {
     return;
   }
-  if(ttlUpload.value){
-    await createShapeTreeFile();
-  }
+
   const registry = registryName.value;
   const registration = registrationName.value;
   const input = fileInput.value;
@@ -94,11 +96,11 @@ async function addRegistrationName(): Promise<void>{
     await createRegistry(registry);
     await updateProfileRegistry(registry);
   }
-  const shapeTree = "shapetrees";
-  if (!(await shapeTreeContainerExists(shapeTree))) {
-    await createShapeTreeContainer(shapeTree);
+
+  const registrationUri = await createRegistration(registry, registration);
+  if(ttlUpload.value){
+    await createShapeTreeFile(registrationUri);
   }
-  await createRegistration(registry, registration);
 
   if (input && input.files && input.files.length) {
     loading.value = true;
@@ -200,7 +202,7 @@ function onShapeFileSelect(){
     reader.readAsText(file);
   }
 }
-async function createShapeTreeFile(){
+async function createShapeTreeFile(registrationUri:string){
   const shapeName = shapeContent.value.match(/<#(.*?)>/)?.[1];
   const shapeTreeName = shapeName + 'Tree';
 
@@ -212,8 +214,11 @@ async function createShapeTreeFile(){
 
   let headers = {};
   headers["Content-type"] ='application/octet-stream'
-  await createShape(`${SHAPE_TREE_CONTAINER_URI}${shapeName}.shape`,shapeContent.value,headers);
-  await createShapeTree(`${SHAPE_TREE_CONTAINER_URI}${shapeName}.tree`,shapeTreeContent,headers);
+  const shapeUri = `${SHAPE_TREE_CONTAINER_URI}${shapeName}.shape`;
+  const shapeTreeUri = `${SHAPE_TREE_CONTAINER_URI}${shapeName}.tree`;
+  await createShape(shapeUri,shapeContent.value,headers);
+  await createShapeTree(shapeTreeUri,shapeTreeContent,headers);
+  await applyShapeTreeData(registrationUri,shapeUri,shapeTreeUri);
 }
 
 function toggleShapeContentView(){

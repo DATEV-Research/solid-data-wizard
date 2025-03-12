@@ -136,13 +136,16 @@ export const useOrganisationStore = () => {
       if (!(await verifyDataRegistration(registrationUri, session))) {
         throw new Error("UnexpectedError: registration Type is not set correctly, after creating it.");
       }
-/*      await applyShapeTree(
+      return registrationUri;
+    },
+    applyShapeTreeData: async (registrationUri: string, shapeUri: string, shapeTreeUri: string) => {
+      await applyShapeTree(
           registrationUri,
           memberOf.value,
-          SOLD_PDF_BINARY_SHAPE_URI,
-          SOLD_PDF_BINARY_SHAPETREE_URI,
+          shapeUri,
+          shapeTreeUri,
           session,
-      );*/
+      );
     },
     updateACLPermission: async (registryName: string, registrationName:string) => {
       await updateRegistryACLPermission(`${organisationStorageUri.value}${registryName}/`,registryName, session);
