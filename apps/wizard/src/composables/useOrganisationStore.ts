@@ -17,7 +17,7 @@ import {
   createShapeTreeContainerData,
   getShapeFilesUri,
   getShapeContent,
-  compareShapeContent
+  compareShapeContent, getShapeTreeResource, getShapeResource
 } from "@/utils/solid-helper";
 import {
   useIsLoggedIn,
@@ -32,6 +32,7 @@ import {TreeNode} from "primevue/treenode";
 import { computed, ref, watch } from "vue";
 import {getFileExtension} from "@/utils/fileExtension";
 import {TTL_EXTENSION} from "@/constants/extensions";
+import {parseShapeFile} from "@/utils/parseShapeTree";
 
 /**
  * TODOs
@@ -129,7 +130,7 @@ export const useOrganisationStore = () => {
     allShapeFiles: async (shapeTree:string, shapeContent:string) => {
       // get all the shape files URI present in the shapetrees container
       const shapeURI = await getShapeFilesUri(`${organisationStorageUri.value}${shapeTree}/`, session);
-      await compareShapeContent(shapeURI,shapeContent, session);
+      //await compareShapeContent(shapeURI,shapeContent, session);
     },
     createRegistration: async (registryName: string, registrationName: string) => {
       const { rdf: registrationRdf, uri: registrationUri } = await createDataRegistration(`${organisationStorageUri.value}${registryName}/`, registrationName, session);
@@ -166,6 +167,39 @@ export const useOrganisationStore = () => {
     },
     deleteRegistry: async (registryUri: string) => {
       await deleteRegistryResource(SOLID_PROFILE_REGISTRY_URI, registryUri, session);
+    },
+    getRegistryAndShape: async(shapeContent: string)=> {
+      const registries = await getRegistryResource(SOLID_PROFILE_REGISTRY_URI, session);
+      const registryAndShapes:any[] = [];
+      return new Promise((resolve, reject) => {
+      registries.map(async(registryUri) => {
+
+        const registrationUris = await getRegistryResource(registryUri, session)
+        registrationUris.map(async(registrationUri) =>
+        {
+          const shapeTreeUri = await getShapeTreeResource(registrationUri, session);
+          shapeTreeUri.map(async(shapeTreeUri) => {
+            const remoteShapeContent:string = await getShapeContent(shapeTreeUri,session);
+            const shapes = await parseShapeFile(remoteShapeContent);
+            console.log(shapes);
+            const isShapeFound =await compareShapeContent(shapes,shapeContent, session);
+            console.log('isShapeFound =>',isShapeFound);
+            if(isShapeFound){
+              console.log('isShapeFound =>',isShapeFound);
+              registryAndShapes.push({
+                registrationName: getRegistryLabel(registrationUri),
+                registrationUri: registrationUri,
+                registryName: getRegistryLabel(registryUri),
+                registry: registryUri,
+                shapeUri: isShapeFound
+              });
+              resolve( registryAndShapes);
+            }
+          })
+        });
+      });
+      });
+
     },
     getFullRegistry: async ()=> {
       const registries = await getRegistryResource(SOLID_PROFILE_REGISTRY_URI, session);

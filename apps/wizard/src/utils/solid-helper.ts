@@ -99,14 +99,16 @@ export const applyShapeTree = async (
     throw new Error("UnexpectedRegistrationURI: Not found or invalid");
   }
 
+/*
   if (!(await uriExists(shapeUri, session))) {
-    const response = await axios({ url: 'shapes/pdfBinary.shape', method: "get" });
+    const response = await axios({ url: shapeUri, method: "get" });
     await putResource(shapeUri, response.data, session);
   }
   if (!(await uriExists(shapeTreeUri, session))) {
-    const response = await axios({ url: 'shapes/pdfBinary.tree', method: "get" });
+    const response = await axios({ url: shapeTreeUri, method: "get" });
     await putResource(shapeTreeUri, response.data, session);
   }
+*/
 
   const hasShapeTreeMetaData = getFirstObjectValue(registrationUri, INTEROP("registeredShapeTree"), registrationStore);
 
@@ -302,6 +304,38 @@ export const getRegistryResource = async (uri:string, session:Session): Promise<
   return urls;
 };
 
+export const getShapeTreeResource = async (uri:string, session:Session): Promise<string[]> => {
+  let store = await requestStore(uri,session);
+  if (store === null) {
+    // Fallback for binary files like PDFs
+    store = await requestStore(`${uri}.meta`,session);
+  }
+  const types: string[] = __getObjectValues(null,RDF("type"),store);
+  let urls: string[] = [];
+
+  if( types.includes(INTEROP("DataRegistration") )){
+    urls = __getObjectValues(null, INTEROP("registeredShapeTree"),store);
+  }
+  return urls;
+};
+
+export const getShapeResource = async (uri:string, session:Session): Promise<string[]> => {
+  let store = await requestStore(uri,session);
+  if (store === null) {
+    // Fallback for binary files like PDFs
+    store = await requestStore(`${uri}.meta`,session);
+  }
+  console.log('store => ', store);
+  const types: string[] = __getObjectValues(null,RDF("Resource"),store);
+  let urls: string[] = [];
+  console.log("Types => ", types);
+
+  if( types.includes(INTEROP("ShapeTree") )){
+    urls = __getObjectValues(null, INTEROP("shape"),store);
+  }
+  return urls;
+};
+
 export const deleteRegistryResource = async (profileRegistryUri: string, uri: string, session: Session): Promise<void> => {
   let store = await requestStore(uri, session);
   if (store === null) {
@@ -394,6 +428,7 @@ export const getShapeFilesUri = async (uri: string, session: Session) => {
 }
 
 export const compareShapeContent = async (shapeUris:string[],localShapeContent:string,session: Session) =>{
+  return new Promise((resolve, reject) => {
   shapeUris.map(async(uri)=>{
     const remoteShapeContent:string = await getShapeContent(uri,session);
     try{
@@ -402,15 +437,17 @@ export const compareShapeContent = async (shapeUris:string[],localShapeContent:s
       console.log('Shape File found: ',isFound);
       if(isFound)
       {
-        // shape file found
-        console.log(uri);
+        resolve( uri);
       }
     }
     catch (err){
       console.log(err);
+      resolve( null);
+
     }
 
-  })
+  });
+  });
 }
 
 const isSchemaCountEqual = (remoteSchema:Schema,localSchema:Schema) => {
@@ -442,19 +479,25 @@ const isSchemaNameSame = (remoteSchema:Schema,localSchema:Schema) => {
 }
 const shapeFileFound = (remoteShapeContent:string,localShapeContent:string) => {
   // check if the shape file is found by comparing the shape file
-  const remoteSchema:Schema = ShExParser.construct().parse(remoteShapeContent);
-  const localSchema:Schema = ShExParser.construct().parse(localShapeContent);
+  try{
 
-  // Check total schema are same in both files
-  if(isSchemaCountEqual(remoteSchema,localSchema)){
-    if(isSchemaNameSame(remoteSchema,localSchema))
-    {
-      if(isSchemaContentSame(remoteSchema,localSchema)){
-        return true
+    const remoteSchema:Schema = ShExParser.construct().parse(remoteShapeContent);
+    const localSchema:Schema = ShExParser.construct().parse(localShapeContent);
+    // Check total schema are same in both files
+    if(isSchemaCountEqual(remoteSchema,localSchema)){
+      if(isSchemaNameSame(remoteSchema,localSchema))
+      {
+        if(isSchemaContentSame(remoteSchema,localSchema)){
+          return true
+        }
       }
     }
+    else{
+      return false;
+    }
   }
-  else{
+  catch (e) {
+    // Shape content is not parsed
     return false;
   }
 }

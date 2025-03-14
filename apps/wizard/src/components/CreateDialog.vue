@@ -18,7 +18,7 @@ const N3 = require('n3');
 
 const SHAPE_TREE_CONTAINER_URI = "https://sme.solid.aifb.kit.edu/shapetrees/"
 
-const { createRegistry, createRegistration,updateACLPermission, registryExists, createShape, createShapeTree, registrationExists, uploadFile, updateProfileRegistry, createShapeTreeContainer,applyShapeTreeData, shapeTreeContainerExists, allShapeFiles } = useOrganisationStore();
+const { createRegistry, createRegistration,updateACLPermission, registryExists, createShape, createShapeTree, registrationExists, uploadFile, updateProfileRegistry, createShapeTreeContainer,applyShapeTreeData, shapeTreeContainerExists,getRegistryAndShape,allShapeFiles  } = useOrganisationStore();
 
 const emit = defineEmits<{
   (e: "registryCreated", value: boolean): void;
@@ -53,6 +53,7 @@ const shapeContent = ref('');
 const uploadShapeFile = ref<boolean>(false);
 const toggleShapeContent = ref<boolean>(false);
 const isSubmitDisabled = ref<boolean>(true);
+const foundRegistryAndShapeData = ref<string[]>([]);
 
 const toast = useToast();
 function resetErrorMessage() {
@@ -177,7 +178,12 @@ function createShapeContent(file:Blob){
       if(isValidTurtleContent.success){
         isSubmitDisabled.value = false;
         shapeContent.value= await turtleToShape(content);
-        const shapes = await allShapeFiles('shapetrees', shapeContent.value);
+        const foundRegistryAndShape: string[] = await getRegistryAndShape(shapeContent.value);
+        //const shapes = await allShapeFiles('shapetrees', shapeContent.value);
+        if(foundRegistryAndShape){
+          foundRegistryAndShapeData.value = foundRegistryAndShape;
+        }
+        console.log('found =>',foundRegistryAndShape);
       }
       else{
         isSubmitDisabled.value = true;
@@ -247,6 +253,12 @@ function toggleShapeContentView(){
                 <edit-shape-content :content="shapeContent" @close-preview="toggleShapeContentView" />
               </div>
             </transition>
+          </div>
+
+          <div class="col-12" v-show="foundRegistryAndShapeData">
+            <div v-for="data in foundRegistryAndShapeData" :key="data">
+              <span><a :href="data.shapeUri">Found Shape</a></span>
+            </div>
           </div>
           <div class="col-12">
             <div class="flex">
