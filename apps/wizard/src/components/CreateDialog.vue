@@ -5,20 +5,21 @@ import {validateInput} from "@/utils/validateInput";
 import {DacklTextInput} from "@datev-research/mandat-shared-components";
 import {computedAsync} from "@vueuse/core";
 import {useToast} from "primevue/usetoast";
-import {computed, ref} from "vue";
+import {computed, ref, toRaw, watchEffect} from "vue";
 import {getFileExtension} from "@/utils/fileExtension";
 import {TTL_EXTENSION} from "@/constants/extensions";
 import {isValidTurtle, turtleToShape} from "@/utils/turtleToShapeTree";
 import EditShapeContent from "@/components/editShapeContent.vue";
 import {fileSizeExceeded} from "@/utils/fileSize";
 import {validateFileName} from "@/utils/validateFileName";
+import {registrationDuplicateState} from "@/enums/registrationDuplicateStatus";
 
 
 const N3 = require('n3');
 
 const SHAPE_TREE_CONTAINER_URI = "https://sme.solid.aifb.kit.edu/shapetrees/"
 
-const { createRegistry, createRegistration,updateACLPermission, registryExists, createShape, createShapeTree, registrationExists, uploadFile, updateProfileRegistry, createShapeTreeContainer,applyShapeTreeData, shapeTreeContainerExists,getRegistryAndShape,allShapeFiles  } = useOrganisationStore();
+const { createRegistry, createRegistration,updateACLPermission, registryExists, createShape, createShapeTree, registrationExists, uploadFile, updateProfileRegistry, createShapeTreeContainer,applyShapeTreeData, shapeTreeContainerExists,getRegistryAndShape,getRegistryAndShape2,allShapeFiles  } = useOrganisationStore();
 
 const emit = defineEmits<{
   (e: "registryCreated", value: boolean): void;
@@ -40,6 +41,8 @@ const registrationNameExists = computedAsync<boolean>(() => {
 }, false, { lazy: false, shallow: true });
 const fileNotSelected = computed<boolean>(() => dirty.value && (!fileInput.value || fileInput.value.files?.length === 0));
 const isInvalid = computed<boolean>(() => invalidRegistry.value || invalidRegistration.value || registrationNameExists.value || fileNotSelected.value);
+const duplicateRegistrationState = ref<string>(registrationDuplicateState.start);
+
 /**
  * Dirty is true when the Button Submit was clicked at least once.
  */
@@ -55,6 +58,18 @@ const toggleShapeContent = ref<boolean>(false);
 const isSubmitDisabled = ref<boolean>(true);
 const foundRegistryAndShapeData = ref<string[]>([]);
 
+watchEffect(async () => {
+  if(shapeContent.value && ttlUpload.value){
+    foundRegistryAndShapeData.value = await getRegistryAndShape(shapeContent.value);
+    console.log('found =>',foundRegistryAndShapeData.value);
+    if(foundRegistryAndShapeData.value.length > 0){
+      duplicateRegistrationState.value = registrationDuplicateState.Duplicate;
+    }
+    else{
+      duplicateRegistrationState.value = registrationDuplicateState.NotFound;
+    }
+  }
+});
 const toast = useToast();
 function resetErrorMessage() {
   dirty.value = false;
@@ -76,7 +91,11 @@ function resetData(){
   ttlUpload.value = false;
   resetErrorMessage();
 }
-
+async function addExistingRegistrationName(){
+  registryName.value = foundRegistryAndShapeData.value[0].registryName;
+  registrationName.value = foundRegistryAndShapeData.value[0].registrationName;
+  addRegistrationName();
+}
 async function addRegistrationName(): Promise<void>{
   resetErrorMessage();
   dirty.value = true;
@@ -177,17 +196,13 @@ function createShapeContent(file:Blob){
       const isValidTurtleContent = isValidTurtle(content);
       if(isValidTurtleContent.success){
         isSubmitDisabled.value = false;
+        duplicateRegistrationState.value = registrationDuplicateState.Checking;
         shapeContent.value= await turtleToShape(content);
-        const foundRegistryAndShape: string[] = await getRegistryAndShape(shapeContent.value);
-        //const shapes = await allShapeFiles('shapetrees', shapeContent.value);
-        if(foundRegistryAndShape){
-          foundRegistryAndShapeData.value = foundRegistryAndShape;
-        }
-        console.log('found =>',foundRegistryAndShape);
       }
       else{
         isSubmitDisabled.value = true;
         shapeContent.value = '';
+        duplicateRegistrationState.value = registrationDuplicateState.start;
         toast.add({
           severity: "error",
           summary: isValidTurtleContent.message,
@@ -200,10 +215,13 @@ function createShapeContent(file:Blob){
 }
 function onShapeFileSelect(){
   const file = shapeFileInput.value?.files?.[0];
+  shapeContent.value='';
+  duplicateRegistrationState.value = registrationDuplicateState.start;
   if (file) {
     const reader = new FileReader();
     reader.onload = function(e) {
       shapeContent.value = e.target.result.toString();
+      duplicateRegistrationState.value = registrationDuplicateState.Checking;
     }
     reader.readAsText(file);
   }
@@ -254,12 +272,6 @@ function toggleShapeContentView(){
               </div>
             </transition>
           </div>
-
-          <div class="col-12" v-show="foundRegistryAndShapeData">
-            <div v-for="data in foundRegistryAndShapeData" :key="data">
-              <span><a :href="data.shapeUri">Found Shape</a></span>
-            </div>
-          </div>
           <div class="col-12">
             <div class="flex">
               <div class="flex-grow-1">
@@ -283,11 +295,33 @@ function toggleShapeContentView(){
             <span v-show="dirty && invalidRegistration" class="text-red-500 mt-2">Invalid DataRegistration name. Allowed characters: a-Z_0-9</span>
             <span v-show="dirty && registrationNameExists" class="text-red-500">DataRegistration Name already used.</span>
           </div>
-          <div class="col-12 text-right">
-            <Button class="mr-2" severity="secondary" @click="closeDialog"
-            >Cancel</Button>
-            <Button class="ml-2" :severity="isSubmitDisabled ? 'secondary': 'primary'" :disabled ="isSubmitDisabled" label="Submit" @click="addRegistrationName" :loading="loading"
-            ></Button>
+          <div class="grid col-12">
+            <div class="col-12" v-if="duplicateRegistrationState === registrationDuplicateState.Checking">Please wait. Checking for Data Registration duplicate..</div>
+            <div class="col-12" v-if="duplicateRegistrationState === registrationDuplicateState.NotFound">No duplicates found <i class="info-icon pi pi-check" style="color: green; font-size: 1.5rem"></i>
+            </div>
+            <div class="col-12" v-if="duplicateRegistrationState === registrationDuplicateState.Duplicate"><i class="info-icon pi pi-exclamation-triangle" style="font-size: 1rem"></i>A Data Registration with the same Shape was found!</div>
+            <div v-if="duplicateRegistrationState === registrationDuplicateState.Duplicate">
+            <div v-for="data in foundRegistryAndShapeData" :key="data.shape">
+              <a :href="data.registrationUri">{{data.registrationUri}}</a> <br/>
+            </div>
+            </div>
+          </div>
+          <div class="grid col-12 text-right" >
+            <div class="w-full m-auto" v-if="foundRegistryAndShapeData.length ===0">
+              <Button class="mr-2" severity="secondary" @click="closeDialog"
+              >Cancel</Button>
+              <Button class="ml-2" :severity="isSubmitDisabled ? 'secondary': 'primary'" :disabled ="isSubmitDisabled" label="Submit" @click="addRegistrationName" :loading="loading"
+              ></Button>
+            </div>
+            <div class="w-full m-auto" v-if="foundRegistryAndShapeData.length >0">
+              <Button class="mr-2" severity="secondary" @click="closeDialog"
+              >Cancel</Button>
+              <Button class="ml-2" :severity="isSubmitDisabled ? 'secondary': 'primary'" :disabled ="isSubmitDisabled" label="Create New Registration and Submit" @click="addRegistrationName" :loading="loading"
+              ></Button>
+              <Button class="ml-2" :severity="isSubmitDisabled ? 'secondary': 'primary'" :disabled ="isSubmitDisabled" label="Submit to existing Registration" @click="addExistingRegistrationName" :loading="loading"
+              ></Button>
+            </div>
+
           </div>
         </div>
 </template>

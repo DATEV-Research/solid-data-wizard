@@ -428,26 +428,21 @@ export const getShapeFilesUri = async (uri: string, session: Session) => {
 }
 
 export const compareShapeContent = async (shapeUris:string[],localShapeContent:string,session: Session) =>{
-  return new Promise((resolve, reject) => {
+  return await Promise.all(
   shapeUris.map(async(uri)=>{
     const remoteShapeContent:string = await getShapeContent(uri,session);
     try{
       // Compare remote shape file with the local shape file
       const isFound = shapeFileFound(remoteShapeContent,localShapeContent);
-      console.log('Shape File found: ',isFound);
       if(isFound)
       {
-        resolve( uri);
+        return uri;
       }
     }
     catch (err){
       console.log(err);
-      resolve( null);
-
     }
-
-  });
-  });
+  }));
 }
 
 const isSchemaCountEqual = (remoteSchema:Schema,localSchema:Schema) => {
