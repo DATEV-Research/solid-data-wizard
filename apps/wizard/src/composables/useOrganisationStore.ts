@@ -106,6 +106,7 @@ export const useOrganisationStore = () => {
 
     registryExists: (registryName: string) => uriExists(`${organisationStorageUri.value}${registryName}/`, session),
     registrationExists: (registryName: string, registrationName: string) => uriExists(`${organisationStorageUri.value}${registryName}/${registrationName}/`, session),
+    documentExists: (registryName: string, registrationName: string, documentName:string) => uriExists(`${organisationStorageUri.value}${registryName}/${registrationName}/${documentName}`, session),
 
     createRegistry: async (registryName: string) => {
       const { rdf: registryRdf, uri: registryUri } = await createDataRegistry(organisationStorageUri.value, registryName, undefined, session);
@@ -201,12 +202,15 @@ export const useOrganisationStore = () => {
                 const registrationName = getRegistryLabel(registrationUri);
                 const registryName = getRegistryLabel(registryUri);
 
-              return {registrationUri,registrationName,registryName, shapeParsedContent,shapeContent, registryUri, shapeTreeUri, flatCompare};
+              return {"registrationUri": registrationUri,"registrationName":registrationName,"registryName":registryName, "registryUri":registryUri, "flatCompare": flatCompare};
             })
         );
         // Step 5 filter out the shape content which is not null
         const result = shapeConteData.map((data) => data?.flatCompare !== undefined ? data : null).filter((data) => data !== null);
-        return toRaw(result.flat());
+        console.log('1',toRaw(result.flat()));
+        console.log('2',Array.from(result.flat()));
+        console.log('3',toRaw(result.flat()).slice())
+        return result;
       }
       catch (e) {
       }

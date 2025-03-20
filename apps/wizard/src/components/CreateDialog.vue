@@ -13,13 +13,14 @@ import EditShapeContent from "@/components/editShapeContent.vue";
 import {fileSizeExceeded} from "@/utils/fileSize";
 import {validateFileName} from "@/utils/validateFileName";
 import {registrationDuplicateState} from "@/enums/registrationDuplicateStatus";
+import {renameFile} from "@/utils/renameFile";
 
 
 const N3 = require('n3');
 
 const SHAPE_TREE_CONTAINER_URI = "https://sme.solid.aifb.kit.edu/shapetrees/"
 
-const { createRegistry, createRegistration,updateACLPermission, registryExists, createShape, createShapeTree, registrationExists, uploadFile, updateProfileRegistry, createShapeTreeContainer,applyShapeTreeData, shapeTreeContainerExists,getRegistryAndShape,getRegistryAndShape2,allShapeFiles  } = useOrganisationStore();
+const { createRegistry, createRegistration,updateACLPermission, registryExists, registrationExists, createShape, createShapeTree, documentExists, uploadFile, updateProfileRegistry, createShapeTreeContainer,applyShapeTreeData, shapeTreeContainerExists,getRegistryAndShape,getRegistryAndShape2,allShapeFiles  } = useOrganisationStore();
 
 const emit = defineEmits<{
   (e: "registryCreated", value: boolean): void;
@@ -51,7 +52,8 @@ const shapeContent = ref('');
 const uploadShapeFile = ref<boolean>(false);
 const toggleShapeContent = ref<boolean>(false);
 const isSubmitDisabled = ref<boolean>(true);
-const foundRegistryAndShapeData = ref<string[]>([]);
+const foundRegistryAndShapeData = ref([]);
+const selectedRegistryAndShapeData = ref([]);
 
 watchEffect(async () => {
   if(shapeContent.value && ttlUpload.value){
@@ -87,15 +89,38 @@ function resetData(){
   resetErrorMessage();
 }
 async function addExistingRegistrationName(){
-  registryName.value = foundRegistryAndShapeData.value[0].registryName;
-  registrationName.value = foundRegistryAndShapeData.value[0].registrationName;
-  addRegistrationName(false);
+  if(selectedRegistryAndShapeData.value.registryName){
+    registryName.value = selectedRegistryAndShapeData.value.registryName;
+    registrationName.value = selectedRegistryAndShapeData.value.registrationName;
+    await addRegistrationName(false);
+  }
+  else{
+    toast.add({
+      severity: "error",
+      summary: "Please select a Data Registration",
+      life: 5000,
+    });
+  }
 }
 async function addRegistrationName(createNewRegistration:boolean): Promise<void>{
   resetErrorMessage();
   dirty.value = true;
 
   const shapeTree = "shapetrees";
+  const registry = registryName.value;
+  const registration = registrationName.value;
+  const isRegistryExists = await registryExists(registry);
+  const isRegistrationExists = await registrationExists(registry, registration);
+  let input:File = fileInput.value.files?.[0];
+
+  if(createNewRegistration && isRegistrationExists){
+      toast.add({
+        severity: "error",
+        summary: `'${registration}' already exists with the same`,
+        life: 5000,
+      });
+      return;
+  }
 
   // Create ShapeTree Container if it does not exist
   if (!(await shapeTreeContainerExists(shapeTree))) {
@@ -105,15 +130,19 @@ async function addRegistrationName(createNewRegistration:boolean): Promise<void>
     return;
   }
 
-  const registry = registryName.value;
-  const registration = registrationName.value;
-  const input = fileInput.value;
-
-  if (!(await registryExists(registry))) {
+  // Check if registry exists, if not create the registry and update the profile
+  if (!(isRegistryExists)) {
     await createRegistry(registry);
     await updateProfileRegistry(registry);
   }
 
+  // Check if the document exists in the registration, if yes rename the file
+  if(await documentExists(registry, registration,input.name))
+  {
+    input = await renameFileName(input, registry, registration);
+  }
+
+  // Create new registration if the user wants to create a new registration
   if(createNewRegistration){
     const registrationUri = await createRegistration(registry, registration);
     if(ttlUpload.value){
@@ -121,23 +150,26 @@ async function addRegistrationName(createNewRegistration:boolean): Promise<void>
     }
   }
 
-  if (input && input.files && input.files.length) {
+
+  if (input) {
     loading.value = true;
     try{
-      await Promise.all(
-          Array.from(input.files)
-              .map(file => uploadFile(file, registry, registration)));
-
+      // Upload the file to the registration
+      await uploadFile(input, registry, registration);
+      // Update the ACL permission of the registration
+      await updateACLPermission(registry, registration);
+      // Show success message
       toast.add({
         severity: "success",
         summary: "File successfully uploaded!",
         life: 5000,
       });
-      await updateACLPermission(registry, registration);
+
       resetData();
       emit('registryCreated', true);
     }
     catch(err){
+      // Show error message File is not uploaded
       toast.add({
         severity: "error",
         summary: "File is not uploaded",
@@ -149,9 +181,21 @@ async function addRegistrationName(createNewRegistration:boolean): Promise<void>
   }
   loading.value = false;
 }
+async function renameFileName(input:File, registry, registration){
+  let documentExistFlag = true;
+  let newFileName = '';
+  let counter = 0;
+  while(documentExistFlag){
+    newFileName = input.name.replace(/\.[^/.]+$/, "") + `_${counter}` + input.name.match(/\.[^/.]+$/);
+    documentExistFlag = await documentExists(registry, registration,newFileName);
+    counter++;
+  }
 
+  return renameFile(input,newFileName);
+}
 async function onFileSelect(event: Event) {
   const file = event.target.files[0];
+  duplicateRegistrationState.value = registrationDuplicateState.start;
   if (file) if (!validateFileName(file.name)) {
 
     toast.add({
@@ -212,6 +256,9 @@ function createShapeContent(file:Blob){
   };
   reader.readAsText(file);
 }
+/*
+* On shape file is selected
+* */
 function onShapeFileSelect(){
   const file = shapeFileInput.value?.files?.[0];
   shapeContent.value='';
@@ -225,6 +272,9 @@ function onShapeFileSelect(){
     reader.readAsText(file);
   }
 }
+/*
+* Create ShapeTree file takes registration URI as input and creates a shape,shapeTree and apply shape tree data to the registration in pod
+* */
 async function createShapeTreeFile(registrationUri:string){
   const shapeName = shapeContent.value.match(/<#(.*?)>/)?.[1];
   const shapeTreeName = shapeName + 'Tree';
@@ -251,6 +301,7 @@ function toggleShapeContentView(){
 
 <template>
         <div class="grid pt-0 pb-3">
+          <!-- Select a document to upload -->
           <div class="grid col-6">
             <div class=" col-12">Please select the document to upload</div>
             <div class="col-12"><input ref="fileInput" type="file" @change="onFileSelect" /></div>
@@ -258,12 +309,14 @@ function toggleShapeContentView(){
               <span class="text-red-500">No file selected.</span>
             </div>
           </div>
+          <!-- Upload Shape file -->
           <div class="grid col-6" v-if="ttlUpload">
            <div class="col-12"><Checkbox v-model="uploadShapeFile" :binary="true"/>
             <label> Upload shape file</label></div>
             <div class="col-12" v-if="uploadShapeFile" ><input ref="shapeFileInput" type="file" @change="onShapeFileSelect" accept=".shape"/></div>
             <div class="col-12" v-else @click="toggleShapeContentView"><a> View Created shape file</a></div>
           </div>
+          <!-- Shape content data -->
           <div class="col-12" v-show="toggleShapeContent">
             <transition name="fade">
               <div v-show="!uploadShapeFile" >
@@ -271,6 +324,7 @@ function toggleShapeContentView(){
               </div>
             </transition>
           </div>
+          <!-- Enter Registry Name -->
           <div class="col-12">
             <div class="flex">
               <div class="flex-grow-1">
@@ -282,6 +336,7 @@ function toggleShapeContentView(){
             </div>
             <span v-show="dirty && invalidRegistry" class="text-red-500 mt-2">Invalid DataRegistry name. Allowed characters: a-Z-0-9</span>
           </div>
+          <!-- Enter Registration name -->
           <div class="col-12">
             <div class="flex">
               <div class="flex-grow-1">
@@ -293,17 +348,23 @@ function toggleShapeContentView(){
             </div>
             <span v-show="dirty && invalidRegistration" class="text-red-500 mt-2">Invalid DataRegistration name. Allowed characters: a-Z_0-9</span>
           </div>
+
+          <!-- Show the duplicate data registration -->
           <div class="grid col-12">
             <div class="col-12" v-if="duplicateRegistrationState === registrationDuplicateState.Checking">Please wait. Checking for Data Registration duplicate..</div>
             <div class="col-12" v-if="duplicateRegistrationState === registrationDuplicateState.NotFound">No duplicates found <i class="info-icon pi pi-check" style="color: green; font-size: 1.5rem"></i>
             </div>
             <div class="col-12" v-if="duplicateRegistrationState === registrationDuplicateState.Duplicate"><i class="info-icon pi pi-exclamation-triangle" style="font-size: 1rem"></i>A Data Registration with the same Shape was found!</div>
             <div v-if="duplicateRegistrationState === registrationDuplicateState.Duplicate">
-            <div v-for="data in foundRegistryAndShapeData" :key="data.shape">
+              <Dropdown v-model="selectedRegistryAndShapeData" :options="foundRegistryAndShapeData" optionLabel="registrationUri" placeholder="Select a Data Registration" class="w-full md:w-14rem" />
+
+              <div v-for="data in foundRegistryAndShapeData" :key="data.shape">
               <a :href="data.registrationUri">{{data.registrationUri}}</a> <br/>
             </div>
             </div>
           </div>
+
+          <!-- Action buttons to create registration-->
           <div class="grid col-12 text-right" >
             <div class="w-full m-auto" v-if="foundRegistryAndShapeData.length ===0">
               <Button class="mr-2" severity="secondary" @click="closeDialog"
