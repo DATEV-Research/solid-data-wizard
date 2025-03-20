@@ -34,13 +34,8 @@ const shapeFileInput = ref<HTMLInputElement | null>(null); // use `useTemplateRe
 
 const invalidRegistry = computed<boolean>(() => !validateInput(registryName.value));
 const invalidRegistration = computed<boolean>(() => !validateInput(registrationName.value));
-const registrationNameExists = computedAsync<boolean>(() => {
-  if (!registryName.value || !registrationName.value) { return Promise.resolve(false); }
-  return registrationExists(registryName.value,
-          registrationName.value);
-}, false, { lazy: false, shallow: true });
 const fileNotSelected = computed<boolean>(() => dirty.value && (!fileInput.value || fileInput.value.files?.length === 0));
-const isInvalid = computed<boolean>(() => invalidRegistry.value || invalidRegistration.value || registrationNameExists.value || fileNotSelected.value);
+const isInvalid = computed<boolean>(() => invalidRegistry.value || invalidRegistration.value  || fileNotSelected.value);
 const duplicateRegistrationState = ref<string>(registrationDuplicateState.start);
 
 /**
@@ -94,13 +89,15 @@ function resetData(){
 async function addExistingRegistrationName(){
   registryName.value = foundRegistryAndShapeData.value[0].registryName;
   registrationName.value = foundRegistryAndShapeData.value[0].registrationName;
-  addRegistrationName();
+  addRegistrationName(false);
 }
-async function addRegistrationName(): Promise<void>{
+async function addRegistrationName(createNewRegistration:boolean): Promise<void>{
   resetErrorMessage();
   dirty.value = true;
 
-    const shapeTree = "shapetrees";
+  const shapeTree = "shapetrees";
+
+  // Create ShapeTree Container if it does not exist
   if (!(await shapeTreeContainerExists(shapeTree))) {
     await createShapeTreeContainer(shapeTree);
   }
@@ -117,9 +114,11 @@ async function addRegistrationName(): Promise<void>{
     await updateProfileRegistry(registry);
   }
 
-  const registrationUri = await createRegistration(registry, registration);
-  if(ttlUpload.value){
-    await createShapeTreeFile(registrationUri);
+  if(createNewRegistration){
+    const registrationUri = await createRegistration(registry, registration);
+    if(ttlUpload.value){
+      await createShapeTreeFile(registrationUri);
+    }
   }
 
   if (input && input.files && input.files.length) {
@@ -293,7 +292,6 @@ function toggleShapeContentView(){
               </div>
             </div>
             <span v-show="dirty && invalidRegistration" class="text-red-500 mt-2">Invalid DataRegistration name. Allowed characters: a-Z_0-9</span>
-            <span v-show="dirty && registrationNameExists" class="text-red-500">DataRegistration Name already used.</span>
           </div>
           <div class="grid col-12">
             <div class="col-12" v-if="duplicateRegistrationState === registrationDuplicateState.Checking">Please wait. Checking for Data Registration duplicate..</div>
@@ -310,13 +308,13 @@ function toggleShapeContentView(){
             <div class="w-full m-auto" v-if="foundRegistryAndShapeData.length ===0">
               <Button class="mr-2" severity="secondary" @click="closeDialog"
               >Cancel</Button>
-              <Button class="ml-2" :severity="isSubmitDisabled ? 'secondary': 'primary'" :disabled ="isSubmitDisabled" label="Submit" @click="addRegistrationName" :loading="loading"
+              <Button class="ml-2" :severity="isSubmitDisabled ? 'secondary': 'primary'" :disabled ="isSubmitDisabled" label="Submit" @click="addRegistrationName(true)" :loading="loading"
               ></Button>
             </div>
             <div class="w-full m-auto" v-if="foundRegistryAndShapeData.length >0">
               <Button class="mr-2" severity="secondary" @click="closeDialog"
               >Cancel</Button>
-              <Button class="ml-2" :severity="isSubmitDisabled ? 'secondary': 'primary'" :disabled ="isSubmitDisabled" label="Create New Registration and Submit" @click="addRegistrationName" :loading="loading"
+              <Button class="ml-2" :severity="isSubmitDisabled ? 'secondary': 'primary'" :disabled ="isSubmitDisabled" label="Create New Registration and Submit" @click="addRegistrationName(true)" :loading="loading"
               ></Button>
               <Button class="ml-2" :severity="isSubmitDisabled ? 'secondary': 'primary'" :disabled ="isSubmitDisabled" label="Submit to existing Registration" @click="addExistingRegistrationName" :loading="loading"
               ></Button>
