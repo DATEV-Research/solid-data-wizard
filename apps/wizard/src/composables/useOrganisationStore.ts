@@ -208,20 +208,16 @@ export const useOrganisationStore = () => {
                 // Todo change name for ShapeParsedContent
                 const shapeParsedContent = await parseShapeFile(shapeContent);
                 console.log('shapeParsedContent =>',shapeParsedContent);
-                const compareResult = await compareShapeContent(shapeParsedContent,localShapeContent, session);
-                const flatCompare = compareResult[0];
+                const shapeFilesURI = await compareShapeContent(shapeParsedContent,localShapeContent, session);
+                const shapeURI = shapeFilesURI[0];
                 const registrationName = getRegistryLabel(registrationUri);
                 const registryName = getRegistryLabel(registryUri);
 
-              return {"registrationUri": registrationUri,"registrationName":registrationName,"registryName":registryName, "registryUri":registryUri, "flatCompare": flatCompare};
+              return {"registrationUri": registrationUri,"registrationName":registrationName,"registryName":registryName, "registryUri":registryUri, "shapeURI": shapeURI, "shapeTreeURI":shapeTreeUri};
             })
         );
         // Step 5 filter out the shape content which is not null
-        const result = shapeConteData.map((data) => data?.flatCompare !== undefined ? data : null).filter((data) => data !== null);
-        console.log('1',toRaw(result.flat()));
-        console.log('2',Array.from(result.flat()));
-        console.log('3',toRaw(result.flat()).slice())
-        return result;
+        return shapeConteData.map((data) => data?.shapeURI !== undefined ? data : null).filter((data) => data !== null);
       }
       catch (e) {
       }

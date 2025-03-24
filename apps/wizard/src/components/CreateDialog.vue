@@ -59,6 +59,7 @@ const selectedRegistryAndShapeData = ref([]);
 watchEffect(async () => {
   if(shapeContent.value && ttlUpload.value){
     foundRegistryAndShapeData.value = await getRegistryAndShape(shapeContent.value);
+    //foundRegistryAndShapeData.value = [];
     console.log('found =>',foundRegistryAndShapeData.value);
     if(foundRegistryAndShapeData.value.length > 0){
       duplicateRegistrationState.value = registrationDuplicateState.Duplicate;
@@ -147,8 +148,13 @@ async function addRegistrationName(createNewRegistration:boolean): Promise<void>
   // Create new registration if the user wants to create a new registration
   if(createNewRegistration){
     const registrationUri = await createRegistration(registry, registration);
-    if(ttlUpload.value){
+    if(ttlUpload.value && foundRegistryAndShapeData.value.length ===0){
       await createShapeTreeFile(registrationUri);
+    }
+    else{
+      const shapeURI = foundRegistryAndShapeData.value[0].shapeURI;
+      const shapeTreeURI = foundRegistryAndShapeData.value[0].shapeTreeURI;
+      await applyShapeTreeData(registrationUri,shapeURI,shapeTreeURI);
     }
   }
 
@@ -321,8 +327,10 @@ async function createShapeTreeFile(registrationUri:string){
 
 console.log('shapeUri =>* ',shapeUri);
 console.log('shapeTreeUri =>* ',shapeTreeUri);
-  await createShape(shapeUri,shapeContent.value,headers);
-  await createShapeTree(shapeTreeUri,shapeTreeContent,headers);
+
+  await createShape(shapeUri, shapeContent.value, headers);
+  await createShapeTree(shapeTreeUri, shapeTreeContent, headers);
+
   await applyShapeTreeData(registrationUri,shapeUri,shapeTreeUri);
 }
 
