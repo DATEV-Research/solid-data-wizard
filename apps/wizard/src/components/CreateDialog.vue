@@ -14,9 +14,6 @@ import {validateFileName} from "@/utils/validateFileName";
 import {registrationDuplicateState} from "@/enums/registrationDuplicateStatus";
 import {renameFile} from "@/utils/renameFile";
 
-
-const N3 = require('n3');
-
 const { createRegistry, createRegistration,updateACLPermission, registryExists, registrationExists, createShape, createShapeTree, documentExists, uploadFile, updateProfileRegistry,allShapeFiles, createShapeTreeContainer,applyShapeTreeData, shapeTreeContainerExists,getRegistryAndShape,resourceExists  } = useOrganisationStore();
 
 const SHAPE_TREE_CONTAINER_URI = `https://sme.solid.aifb.kit.edu/shapetrees`;
@@ -57,8 +54,6 @@ const selectedRegistryAndShapeData = ref([]);
 watchEffect(async () => {
   if(shapeContent.value && ttlUpload.value){
     foundRegistryAndShapeData.value = await getRegistryAndShape(shapeContent.value);
-    //foundRegistryAndShapeData.value = [];
-    console.log('found =>',foundRegistryAndShapeData.value);
     if(foundRegistryAndShapeData.value.length > 0){
       duplicateRegistrationState.value = registrationDuplicateState.Duplicate;
     }
@@ -88,6 +83,7 @@ function resetData(){
   ttlUpload.value = false;
   resetErrorMessage();
 }
+// Add existing registration name to the registry
 async function addExistingRegistrationName(){
   if(selectedRegistryAndShapeData.value.registryName){
     registryName.value = selectedRegistryAndShapeData.value.registryName;
@@ -102,6 +98,7 @@ async function addExistingRegistrationName(){
     });
   }
 }
+// Add new registration name to the registry
 async function addRegistrationName(createNewRegistration:boolean): Promise<void>{
   resetErrorMessage();
   dirty.value = true;
@@ -187,25 +184,9 @@ async function addRegistrationName(createNewRegistration:boolean): Promise<void>
   }
   loading.value = false;
 }
-async function renameFileName(input:File, registry, registration){
-  let documentExistFlag = true;
-  let newFileName = '';
-  let counter = 0;
-
-  while(documentExistFlag){
-    newFileName = input.name.replace(/\.[^/.]+$/, "") + `_${counter}` + input.name.match(/\.[^/.]+$/);
-    //documentExistFlag = await documentExists(registry, registration,newFileName);
-    const uri = `${registry}/${registration}/${newFileName}`;
-    documentExistFlag = await resourceExists(uri);
-    counter++;
-  }
-
-  return renameFile(input,newFileName);
-}
-
 
 async function onFileSelect(event: Event) {
-  const file = event.target.files[0];
+  const file: File = event.target.files[0];
   duplicateRegistrationState.value = registrationDuplicateState.start;
   foundRegistryAndShapeData.value  = [];
   if (file) if (!validateFileName(file.name)) {
@@ -289,52 +270,47 @@ function onShapeFileSelect(){
 * */
 async function createShapeTreeFile(registrationUri:string){
   const extractedShapeName = shapeContent.value.match(/<#(.*?)>/)?.[1];
+  const {shapeURIs, shapeTreeURIs} = await allShapeFiles('shapetrees');
+
   let shapeName = `${extractedShapeName}.shape`;
   let shapeTreeName = `${extractedShapeName}.tree`;
-
-
   let shapeUri = `${SHAPE_TREE_CONTAINER_URI}/${shapeName}`;
   let shapeTreeUri = `${SHAPE_TREE_CONTAINER_URI}/${shapeTreeName}`;
-  const {shapeURIs, shapeTreeURIs} = await allShapeFiles('shapetrees','');
+  let headers = {};
 
-  console.log("shapeURI Includes", shapeURIs.includes(shapeUri), shapeUri);
+  // check if the shape file already exists
   if(shapeURIs.includes(shapeUri) && foundRegistryAndShapeData.value.length === 0){
+    // create new shape file
     shapeName = await newFileName(SHAPE_TREE_CONTAINER_URI, shapeName, shapeURIs);
     shapeUri = `${SHAPE_TREE_CONTAINER_URI}/${shapeName}`;
-    console.log('newShapeFileName => ', shapeName);
   }
+  // check if the shapeTree file already exists
   if(shapeTreeURIs.includes(shapeTreeUri) && foundRegistryAndShapeData.value.length === 0){
+    // create new shapeTree file
     shapeTreeName = await newFileName(SHAPE_TREE_CONTAINER_URI,shapeTreeName, shapeTreeURIs);
     shapeTreeUri = `${SHAPE_TREE_CONTAINER_URI}/${shapeTreeName}`;
-    console.log('newShapeFileName => ', shapeTreeName);
   }
 
-  console.log('shapeFiles => ', shapeURIs);
-  console.log('shapeTreeFiles => ', shapeTreeURIs);
-
+  // ShapeTree content with the shape and shapeTree URI
   const shapeTreeContent = `@prefix st: <http://www.w3.org/ns/shapetrees#> .
 
 <#${shapeTreeName}> a st:ShapeTree ;
   st:expectsType	st:Resource ;
   st:shape      	<${SHAPE_TREE_CONTAINER_URI}/${shapeName}#${shapeName}> .`
 
-  let headers = {};
+
   headers["Content-type"] ='application/octet-stream';
-
-
-
-console.log('shapeUri =>* ',shapeUri);
-console.log('shapeTreeUri =>* ',shapeTreeUri);
-
   await createShape(shapeUri, shapeContent.value, headers);
   await createShapeTree(shapeTreeUri, shapeTreeContent, headers);
 
+  // apply shape tree data to the registration
   await applyShapeTreeData(registrationUri,shapeUri,shapeTreeUri);
 }
 
 function toggleShapeContentView(){
   toggleShapeContent.value = !toggleShapeContent.value;
 }
+// Return a new file name if the file name already exists
 async function newFileName(uri:string,fileName:string, arrayData?:string[]){
   let documentExistFlag = true;
   let newFileName = '';

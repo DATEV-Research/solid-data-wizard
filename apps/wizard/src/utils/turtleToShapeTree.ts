@@ -30,7 +30,6 @@ export function isValidTurtle(turtleContent:string){
         parser.parse(turtleContent);
         return { success: true, message: '' };
     } catch (e) {
-        console.log('Error',e);
         return { success: false, message: e };
     }
 }

@@ -323,10 +323,8 @@ export const getShapeResource = async (uri:string, session:Session): Promise<str
     // Fallback for binary files like PDFs
     store = await requestStore(`${uri}.meta`,session);
   }
-  console.log('store => ', store);
   const types: string[] = __getObjectValues(null,RDF("Resource"),store);
   let urls: string[] = [];
-  console.log("Types => ", types);
 
   if( types.includes(INTEROP("ShapeTree") )){
     urls = __getObjectValues(null, INTEROP("shape"),store);
@@ -416,9 +414,7 @@ export const createShapeTreeContainerData = async (containerURI: string, shapeNa
   }
 }
 export const getShapeFilesUri = async (uri: string, session: Session) => {
-  console.log("=>getShapeFiles", uri);
     const store = await requestStore(uri, session);
-    console.log("=>store", store);
     if (store === null) {
         return [];
     }
@@ -428,10 +424,8 @@ export const getShapeFilesUri = async (uri: string, session: Session) => {
 }
 
 export const compareShapeContent = async (shapeUris:string[],localShapeContent:string,session: Session) =>{
-  console.log('shapeUris => ',shapeUris);
   return await Promise.all(
   shapeUris.map(async(uri)=>{
-    console.log('remote uri => ',uri);
     const remoteShapeContent:string = await getShapeContent(uri,session);
     try{
       // Compare remote shape file with the local shape file
@@ -449,13 +443,10 @@ export const compareShapeContent = async (shapeUris:string[],localShapeContent:s
 
 const isSchemaCountEqual = (remoteSchema:Schema,localSchema:Schema) => {
   // count the number of schema in shape file of remote and local shape file
-  console.log('remoteSchema.shapes?.length , localSchema.shapes?.length', remoteSchema.shapes?.length, localSchema.shapes?.length);
   return remoteSchema.shapes?.length ===  localSchema.shapes?.length
 }
 const isSchemaContentSame = (remoteSchema:Schema,localSchema:Schema) => {
   // check if the content of the schema are same in the both files
-    console.log(remoteSchema);
-    console.log(localSchema);
     localSchema.shapes?.map((shape:ShapeDecl) => {
      const localShapeName = shape.id;
      const remoteShapeContent = remoteSchema.shapes?.find(schema => schema.id === localShapeName);
@@ -466,22 +457,15 @@ const isSchemaContentSame = (remoteSchema:Schema,localSchema:Schema) => {
       const remoteShapeExpressions = remoteShapeExp.expression.expressions;
 
       return localShapeExpressions.map((localExp:any) => remoteShapeExpressions.find((remoteExp:any) => remoteExp.predicate === localExp.predicate )).length === localShapeExpressions?.length;
-
-     //console.log(remoteShapeContent);
     })
   return true;
 }
 const isSchemaNameSame = (remoteSchema:Schema,localSchema:Schema) => {
   // check if the schema name are same in both files
-  console.log('isSchemaNameSame', localSchema.shapes?.map((shape:ShapeDecl) => remoteSchema.shapes?.find(remoteShape => remoteShape.id ===shape.id)).length,localSchema.shapes?.length );
   return localSchema.shapes?.map((shape:ShapeDecl) => remoteSchema.shapes?.find(remoteShape => remoteShape.id ===shape.id)).length === localSchema.shapes?.length;
 }
 const shapeFileFound = (remoteShapeContent:string,localShapeContent:string) => {
   // check if the shape file is found by comparing the shape file
-  console.log('remoteShapeContent',remoteShapeContent);
-  console.log('localShapeContent',localShapeContent);
-
-
   try{
 
     const remoteSchema:Schema = ShExParser.construct().parse(remoteShapeContent);
@@ -491,7 +475,7 @@ const shapeFileFound = (remoteShapeContent:string,localShapeContent:string) => {
       if(isSchemaNameSame(remoteSchema,localSchema))
       {
         if(isSchemaContentSame(remoteSchema,localSchema)){
-          return true
+          return true;
         }
         else{
           console.log('Schema content not same');
