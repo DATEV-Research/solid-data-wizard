@@ -19,9 +19,9 @@ import {getContainerItems} from "@datev-research/mandat-shared-solid-requests/di
 
 const N3 = require('n3');
 
-const SHAPE_TREE_CONTAINER_URI = "https://sme.solid.aifb.kit.edu/shapetrees/"
+const SHAPE_TREE_CONTAINER_URI = "https://sme.solid.aifb.kit.edu/shapetrees"
 
-const { createRegistry, createRegistration,updateACLPermission, registryExists, registrationExists, createShape, createShapeTree, documentExists, uploadFile, updateProfileRegistry, createShapeTreeContainer,applyShapeTreeData, shapeTreeContainerExists,getRegistryAndShape,resourceExists  } = useOrganisationStore();
+const { createRegistry, createRegistration,updateACLPermission, registryExists, registrationExists, createShape, createShapeTree, documentExists, uploadFile, updateProfileRegistry,allShapeFiles,allShapeTreeFiles, createShapeTreeContainer,applyShapeTreeData, shapeTreeContainerExists,getRegistryAndShape,resourceExists  } = useOrganisationStore();
 
 const emit = defineEmits<{
   (e: "registryCreated", value: boolean): void;
@@ -140,7 +140,8 @@ async function addRegistrationName(createNewRegistration:boolean): Promise<void>
   // Check if the document exists in the registration, if yes rename the file
   if(await documentExists(registry, registration,input.name))
   {
-    input = await renameFileName(input, registry, registration);
+    const fileName = await newFileName(`${registry}/${registration}`,input.name);
+    input = await renameFile(input,fileName);
   }
 
   // Create new registration if the user wants to create a new registration
@@ -189,12 +190,16 @@ async function renameFileName(input:File, registry, registration){
 
   while(documentExistFlag){
     newFileName = input.name.replace(/\.[^/.]+$/, "") + `_${counter}` + input.name.match(/\.[^/.]+$/);
-    documentExistFlag = await documentExists(registry, registration,newFileName);
+    //documentExistFlag = await documentExists(registry, registration,newFileName);
+    const uri = `${registry}/${registration}/${newFileName}`;
+    documentExistFlag = await resourceExists(uri);
     counter++;
   }
 
   return renameFile(input,newFileName);
 }
+
+
 async function onFileSelect(event: Event) {
   const file = event.target.files[0];
   duplicateRegistrationState.value = registrationDuplicateState.start;
@@ -279,19 +284,43 @@ function onShapeFileSelect(){
 * Create ShapeTree file takes registration URI as input and creates a shape,shapeTree and apply shape tree data to the registration in pod
 * */
 async function createShapeTreeFile(registrationUri:string){
-  const shapeName = shapeContent.value.match(/<#(.*?)>/)?.[1];
-  const shapeTreeName = shapeName + 'Tree';
+  const extractedName = shapeContent.value.match(/<#(.*?)>/)?.[1];
+  let shapeName = `${extractedName}.shape`;
+  let shapeTreeName = `${extractedName}.tree`;
+
+
+  let shapeUri = `${SHAPE_TREE_CONTAINER_URI}/${shapeName}`;
+  let shapeTreeUri = `${SHAPE_TREE_CONTAINER_URI}/${shapeTreeName}`;
+  const {shapeURIs, shapeTreeURIs} = await allShapeFiles('shapetrees','');
+
+  console.log("shapeURI Includes", shapeURIs.includes(shapeUri), shapeUri);
+  if(shapeURIs.includes(shapeUri) && foundRegistryAndShapeData.value.length === 0){
+    shapeName = await newFileName(SHAPE_TREE_CONTAINER_URI, shapeName, shapeURIs);
+    shapeUri = `${SHAPE_TREE_CONTAINER_URI}/${shapeName}`;
+    console.log('newShapeFileName => ', shapeName);
+  }
+  if(shapeTreeURIs.includes(shapeTreeUri) && foundRegistryAndShapeData.value.length === 0){
+    shapeTreeName = await newFileName(SHAPE_TREE_CONTAINER_URI,shapeTreeName, shapeTreeURIs);
+    shapeTreeUri = `${SHAPE_TREE_CONTAINER_URI}/${shapeTreeName}`;
+    console.log('newShapeFileName => ', shapeTreeName);
+  }
+
+  console.log('shapeFiles => ', shapeURIs);
+  console.log('shapeTreeFiles => ', shapeTreeURIs);
 
   const shapeTreeContent = `@prefix st: <http://www.w3.org/ns/shapetrees#> .
 
 <#${shapeTreeName}> a st:ShapeTree ;
   st:expectsType	st:Resource ;
-  st:shape      	<${SHAPE_TREE_CONTAINER_URI}${shapeName}.shape#${shapeName}> .`
+  st:shape      	<${SHAPE_TREE_CONTAINER_URI}/${shapeName}#${shapeName}> .`
 
   let headers = {};
-  headers["Content-type"] ='application/octet-stream'
-  const shapeUri = `${SHAPE_TREE_CONTAINER_URI}${shapeName}.shape`;
-  const shapeTreeUri = `${SHAPE_TREE_CONTAINER_URI}${shapeName}.tree`;
+  headers["Content-type"] ='application/octet-stream';
+
+
+
+console.log('shapeUri =>* ',shapeUri);
+console.log('shapeTreeUri =>* ',shapeTreeUri);
   await createShape(shapeUri,shapeContent.value,headers);
   await createShapeTree(shapeTreeUri,shapeTreeContent,headers);
   await applyShapeTreeData(registrationUri,shapeUri,shapeTreeUri);
@@ -300,6 +329,28 @@ async function createShapeTreeFile(registrationUri:string){
 function toggleShapeContentView(){
   toggleShapeContent.value = !toggleShapeContent.value;
 }
+async function newFileName(uri:string,fileName:string, arrayData?:string[]){
+  let documentExistFlag = true;
+  let newFileName = '';
+  let counter = 0;
+  console.log('fileName',fileName);
+
+  while(documentExistFlag){
+    newFileName = fileName.replace(/\.[^/.]+$/, "") + `${counter}` + fileName.match(/\.[^/.]+$/);
+    const newUri = `${uri}/${newFileName}`;
+    if(arrayData){
+      documentExistFlag = arrayData.includes(newUri);
+    }
+    else{
+      documentExistFlag = await resourceExists(newUri);
+    }
+    console.log('newFileName =>',newUri,arrayData);
+    counter++;
+  }
+
+  return newFileName;
+}
+
 </script>
 
 <template>

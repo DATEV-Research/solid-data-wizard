@@ -1,5 +1,6 @@
 // Parse the shape file
 import N3, {DataFactory, Quad} from "n3";
+import {getFileExtension} from "@/utils/fileExtension";
 
 const { namedNode } = DataFactory;
 
@@ -11,7 +12,6 @@ export function parseShapeFile(data:string): Promise<string[]> {
     parser.parse(data, (error, quad, prefixes) => {
         if (quad) {
             store.addQuad(quad);
-            console.log('quad:',quad);
         } else {
             // Parsing complete
             console.log('Parsing complete');
@@ -30,7 +30,12 @@ function queryStore(store:any) {
     const quads = store.getQuads(null, shapePredicate, null, null);
     const shapes: string[] =[];
     quads.forEach((quad:Quad) => {
-        shapes.push((quad.object.value).split('#')[0]);
+        //Todo remove unnecessary code
+        const shapeValue = (quad.object.value).split('#')[0];
+        console.log('Shape Value:',shapeValue);
+        if(getFileExtension(shapeValue) === 'shape' && !shapes.includes(shapeValue)){
+            shapes.push(shapeValue);
+        }
     });
     return shapes;
 }

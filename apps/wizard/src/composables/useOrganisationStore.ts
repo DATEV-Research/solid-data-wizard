@@ -107,7 +107,7 @@ export const useOrganisationStore = () => {
     registryExists: (registryName: string) => uriExists(`${organisationStorageUri.value}${registryName}/`, session),
     registrationExists: (registryName: string, registrationName: string) => uriExists(`${organisationStorageUri.value}${registryName}/${registrationName}/`, session),
     documentExists: (registryName: string, registrationName: string, documentName:string) => uriExists(`${organisationStorageUri.value}${registryName}/${registrationName}/${documentName}`, session),
-    resourceExists: (uri:string) => uriExists(`${organisationStorageUri.value}${uri}/`, session),
+    resourceExists: (uri:string) => uriExists(`${organisationStorageUri.value}${uri}`, session),
 
     createRegistry: async (registryName: string) => {
       const { rdf: registryRdf, uri: registryUri } = await createDataRegistry(organisationStorageUri.value, registryName, undefined, session);
@@ -119,6 +119,7 @@ export const useOrganisationStore = () => {
       await putResource(uri,contentShape,session, headers);
     },
     createShapeTree:async (uri:string, contentShapeTree:string, headers: Record<string, string>)=>{
+      console.log('contentShapeTree',uri,contentShapeTree);
       await putResource(uri,contentShapeTree,session, headers);
     },
     updateProfileRegistry: async (registryName: string) => {
@@ -131,10 +132,17 @@ export const useOrganisationStore = () => {
     },
     allShapeFiles: async (shapeTree:string, shapeContent:string) => {
       // get all the shape files URI present in the shapetrees container
+      return  await getShapeFilesUri(`${organisationStorageUri.value}${shapeTree}/`, session);
+      //await compareShapeContent(shapeURI,shapeContent, session);
+    },
+    allShapeTreeFiles: async (shapeTree:string, shapeContent:string) => {
+      // get all the shape files URI present in the shapetrees container
       const shapeURI = await getShapeFilesUri(`${organisationStorageUri.value}${shapeTree}/`, session);
+      return shapeURI;
       //await compareShapeContent(shapeURI,shapeContent, session);
     },
     createRegistration: async (registryName: string, registrationName: string) => {
+      console.log('createRegistration',`${organisationStorageUri.value}${registryName}/`, registrationName);
       const { rdf: registrationRdf, uri: registrationUri } = await createDataRegistration(`${organisationStorageUri.value}${registryName}/`, registrationName, session);
       if (!(await verifyDataRegistration(registrationUri, session))) {
         throw new Error("UnexpectedError: registration Type is not set correctly, after creating it.");
@@ -197,7 +205,9 @@ export const useOrganisationStore = () => {
         const shapeConteData = await Promise.all(
             shapeTreeWithRegistrations. map( async({registrationUri, shapeTreeUri, registryUri}) => {
                 const shapeContent = await getShapeContent(shapeTreeUri, session);
+                // Todo change name for ShapeParsedContent
                 const shapeParsedContent = await parseShapeFile(shapeContent);
+                console.log('shapeParsedContent =>',shapeParsedContent);
                 const compareResult = await compareShapeContent(shapeParsedContent,localShapeContent, session);
                 const flatCompare = compareResult[0];
                 const registrationName = getRegistryLabel(registrationUri);
