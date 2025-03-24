@@ -1,35 +1,29 @@
 import {
-  uriExists,
-  requestStore,
-  getFirstObjectValue,
-  createNamedDataInstance,
-  createDataRegistry,
-  verifyDataRegistry,
-  createDataRegistration,
-  verifyDataRegistration,
-  applyShapeTree,
   addProfileRegistryData,
-  getRegistryResource,
-  deleteRegistryResource,
-  updateRegistryACLPermission,
-  updateRegistrationACLPermission,
-  updateShapeTreeContainerACLPermission,
+  applyShapeTree,
+  compareShapeContent,
+  createDataRegistration,
+  createDataRegistry,
+  createNamedDataInstance,
   createShapeTreeContainerData,
-  getShapeFilesUri,
+  deleteRegistryResource,
+  getFirstObjectValue,
+  getRegistryResource,
   getShapeContent,
-  compareShapeContent, getShapeTreeResource, getShapeResource
+  getShapeFilesUri,
+  getShapeTreeResource,
+  requestStore,
+  updateRegistrationACLPermission,
+  updateRegistryACLPermission,
+  updateShapeTreeContainerACLPermission,
+  uriExists,
+  verifyDataRegistration,
+  verifyDataRegistry
 } from "@/utils/solid-helper";
-import {
-  useIsLoggedIn,
-  useSolidProfile,
-  useSolidSession,
-} from "@datev-research/mandat-shared-composables";
-import {
-  ParsedN3, putResource,
-  SPACE,
-} from "@datev-research/mandat-shared-solid-requests";
+import {useIsLoggedIn, useSolidProfile, useSolidSession,} from "@datev-research/mandat-shared-composables";
+import {ParsedN3, putResource, SPACE,} from "@datev-research/mandat-shared-solid-requests";
 import {TreeNode} from "primevue/treenode";
-import {computed, ref, toRaw, watch} from "vue";
+import {computed, ref, watch} from "vue";
 import {getFileExtension} from "@/utils/fileExtension";
 import {TTL_EXTENSION} from "@/constants/extensions";
 import {parseShapeFile} from "@/utils/parseShapeTree";
@@ -133,12 +127,6 @@ export const useOrganisationStore = () => {
     allShapeFiles: async (shapeTree:string, shapeContent:string) => {
       // get all the shape files URI present in the shapetrees container
       return  await getShapeFilesUri(`${organisationStorageUri.value}${shapeTree}/`, session);
-      //await compareShapeContent(shapeURI,shapeContent, session);
-    },
-    allShapeTreeFiles: async (shapeTree:string, shapeContent:string) => {
-      // get all the shape files URI present in the shapetrees container
-      const shapeURI = await getShapeFilesUri(`${organisationStorageUri.value}${shapeTree}/`, session);
-      return shapeURI;
       //await compareShapeContent(shapeURI,shapeContent, session);
     },
     createRegistration: async (registryName: string, registrationName: string) => {

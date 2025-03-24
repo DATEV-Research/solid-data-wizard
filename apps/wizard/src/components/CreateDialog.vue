@@ -3,9 +3,8 @@
 import {useOrganisationStore} from "@/composables/useOrganisationStore";
 import {validateInput} from "@/utils/validateInput";
 import {DacklTextInput} from "@datev-research/mandat-shared-components";
-import {computedAsync} from "@vueuse/core";
 import {useToast} from "primevue/usetoast";
-import {computed, ref, toRaw, watchEffect} from "vue";
+import {computed, ref, watchEffect} from "vue";
 import {getFileExtension} from "@/utils/fileExtension";
 import {TTL_EXTENSION} from "@/constants/extensions";
 import {isValidTurtle, turtleToShape} from "@/utils/turtleToShapeTree";
@@ -14,14 +13,13 @@ import {fileSizeExceeded} from "@/utils/fileSize";
 import {validateFileName} from "@/utils/validateFileName";
 import {registrationDuplicateState} from "@/enums/registrationDuplicateStatus";
 import {renameFile} from "@/utils/renameFile";
-import {getContainerItems} from "@datev-research/mandat-shared-solid-requests/dist/types/src/solidRequests";
 
 
 const N3 = require('n3');
 
-const SHAPE_TREE_CONTAINER_URI = "https://sme.solid.aifb.kit.edu/shapetrees"
+const { createRegistry, createRegistration,updateACLPermission, registryExists, registrationExists, createShape, createShapeTree, documentExists, uploadFile, updateProfileRegistry,allShapeFiles, createShapeTreeContainer,applyShapeTreeData, shapeTreeContainerExists,getRegistryAndShape,resourceExists  } = useOrganisationStore();
 
-const { createRegistry, createRegistration,updateACLPermission, registryExists, registrationExists, createShape, createShapeTree, documentExists, uploadFile, updateProfileRegistry,allShapeFiles,allShapeTreeFiles, createShapeTreeContainer,applyShapeTreeData, shapeTreeContainerExists,getRegistryAndShape,resourceExists  } = useOrganisationStore();
+const SHAPE_TREE_CONTAINER_URI = `https://sme.solid.aifb.kit.edu/shapetrees`;
 
 const emit = defineEmits<{
   (e: "registryCreated", value: boolean): void;
@@ -290,9 +288,9 @@ function onShapeFileSelect(){
 * Create ShapeTree file takes registration URI as input and creates a shape,shapeTree and apply shape tree data to the registration in pod
 * */
 async function createShapeTreeFile(registrationUri:string){
-  const extractedName = shapeContent.value.match(/<#(.*?)>/)?.[1];
-  let shapeName = `${extractedName}.shape`;
-  let shapeTreeName = `${extractedName}.tree`;
+  const extractedShapeName = shapeContent.value.match(/<#(.*?)>/)?.[1];
+  let shapeName = `${extractedShapeName}.shape`;
+  let shapeTreeName = `${extractedShapeName}.tree`;
 
 
   let shapeUri = `${SHAPE_TREE_CONTAINER_URI}/${shapeName}`;
@@ -341,7 +339,6 @@ async function newFileName(uri:string,fileName:string, arrayData?:string[]){
   let documentExistFlag = true;
   let newFileName = '';
   let counter = 0;
-  console.log('fileName',fileName);
 
   while(documentExistFlag){
     newFileName = fileName.replace(/\.[^/.]+$/, "") + `${counter}` + fileName.match(/\.[^/.]+$/);
@@ -352,10 +349,8 @@ async function newFileName(uri:string,fileName:string, arrayData?:string[]){
     else{
       documentExistFlag = await resourceExists(newUri);
     }
-    console.log('newFileName =>',newUri,arrayData);
     counter++;
   }
-
   return newFileName;
 }
 

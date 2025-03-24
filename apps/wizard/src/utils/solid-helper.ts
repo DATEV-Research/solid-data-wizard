@@ -6,11 +6,9 @@ import {
   LDP,
   ParsedN3,
   parseToN3,
-  putResource,
   RDF,
   XSD
 } from "@datev-research/mandat-shared-solid-requests";
-import axios from 'axios';
 import {DataFactory, Writer} from "n3";
 import {Schema, ShapeDecl} from "shexj";
 
