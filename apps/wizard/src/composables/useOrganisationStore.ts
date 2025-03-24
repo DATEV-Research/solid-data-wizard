@@ -107,6 +107,7 @@ export const useOrganisationStore = () => {
     registryExists: (registryName: string) => uriExists(`${organisationStorageUri.value}${registryName}/`, session),
     registrationExists: (registryName: string, registrationName: string) => uriExists(`${organisationStorageUri.value}${registryName}/${registrationName}/`, session),
     documentExists: (registryName: string, registrationName: string, documentName:string) => uriExists(`${organisationStorageUri.value}${registryName}/${registrationName}/${documentName}`, session),
+    resourceExists: (uri:string) => uriExists(`${organisationStorageUri.value}${uri}/`, session),
 
     createRegistry: async (registryName: string) => {
       const { rdf: registryRdf, uri: registryUri } = await createDataRegistry(organisationStorageUri.value, registryName, undefined, session);

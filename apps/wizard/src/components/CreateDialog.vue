@@ -14,13 +14,14 @@ import {fileSizeExceeded} from "@/utils/fileSize";
 import {validateFileName} from "@/utils/validateFileName";
 import {registrationDuplicateState} from "@/enums/registrationDuplicateStatus";
 import {renameFile} from "@/utils/renameFile";
+import {getContainerItems} from "@datev-research/mandat-shared-solid-requests/dist/types/src/solidRequests";
 
 
 const N3 = require('n3');
 
 const SHAPE_TREE_CONTAINER_URI = "https://sme.solid.aifb.kit.edu/shapetrees/"
 
-const { createRegistry, createRegistration,updateACLPermission, registryExists, registrationExists, createShape, createShapeTree, documentExists, uploadFile, updateProfileRegistry, createShapeTreeContainer,applyShapeTreeData, shapeTreeContainerExists,getRegistryAndShape,getRegistryAndShape2,allShapeFiles  } = useOrganisationStore();
+const { createRegistry, createRegistration,updateACLPermission, registryExists, registrationExists, createShape, createShapeTree, documentExists, uploadFile, updateProfileRegistry, createShapeTreeContainer,applyShapeTreeData, shapeTreeContainerExists,getRegistryAndShape,resourceExists  } = useOrganisationStore();
 
 const emit = defineEmits<{
   (e: "registryCreated", value: boolean): void;
@@ -185,6 +186,7 @@ async function renameFileName(input:File, registry, registration){
   let documentExistFlag = true;
   let newFileName = '';
   let counter = 0;
+
   while(documentExistFlag){
     newFileName = input.name.replace(/\.[^/.]+$/, "") + `_${counter}` + input.name.match(/\.[^/.]+$/);
     documentExistFlag = await documentExists(registry, registration,newFileName);
@@ -196,6 +198,7 @@ async function renameFileName(input:File, registry, registration){
 async function onFileSelect(event: Event) {
   const file = event.target.files[0];
   duplicateRegistrationState.value = registrationDuplicateState.start;
+  foundRegistryAndShapeData.value  = [];
   if (file) if (!validateFileName(file.name)) {
 
     toast.add({
@@ -354,18 +357,16 @@ function toggleShapeContentView(){
             <div class="col-12" v-if="duplicateRegistrationState === registrationDuplicateState.Checking">Please wait. Checking for Data Registration duplicate..</div>
             <div class="col-12" v-if="duplicateRegistrationState === registrationDuplicateState.NotFound">No duplicates found <i class="info-icon pi pi-check" style="color: green; font-size: 1.5rem"></i>
             </div>
-            <div class="col-12" v-if="duplicateRegistrationState === registrationDuplicateState.Duplicate"><i class="info-icon pi pi-exclamation-triangle" style="font-size: 1rem"></i>A Data Registration with the same Shape was found!</div>
-            <div v-if="duplicateRegistrationState === registrationDuplicateState.Duplicate">
-              <Dropdown v-model="selectedRegistryAndShapeData" :options="foundRegistryAndShapeData" optionLabel="registrationUri" placeholder="Select a Data Registration" class="w-full md:w-14rem" />
-
-              <div v-for="data in foundRegistryAndShapeData" :key="data.shape">
-              <a :href="data.registrationUri">{{data.registrationUri}}</a> <br/>
-            </div>
+            <div class="col-6" v-if="duplicateRegistrationState === registrationDuplicateState.Duplicate"><i class="info-icon pi pi-exclamation-triangle" style="font-size: 1rem"></i>A Data Registration with the same Shape was found!</div>
+            <div class="col-6" v-if="duplicateRegistrationState === registrationDuplicateState.Duplicate">
+              <div class="pr-3">
+                <Dropdown v-model="selectedRegistryAndShapeData" :options="foundRegistryAndShapeData" optionLabel="registrationUri" placeholder="Select a Data Registration" class="w-full" />
+              </div>
             </div>
           </div>
 
           <!-- Action buttons to create registration-->
-          <div class="grid col-12 text-right" >
+          <div class="grid col-12 text-right pr-5" >
             <div class="w-full m-auto" v-if="foundRegistryAndShapeData.length ===0">
               <Button class="mr-2" severity="secondary" @click="closeDialog"
               >Cancel</Button>
