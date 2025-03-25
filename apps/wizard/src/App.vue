@@ -150,7 +150,6 @@ async function deleteSelectedNodes(){
     accept: async () => {
       loading.value = true;
       pendingDelete.value = true;
-
       try {
         for (const uriToDelete of nodesUrisToBeDeleted) {
           await deleteRegistry(uriToDelete);
@@ -169,7 +168,8 @@ async function deleteSelectedNodes(){
         console.error("[deleteSelectedNodes] Failed due to error: ", err);
       }
 
-      selectedNodes.value = {};
+
+      Object.entries(selectedNodes.value).forEach(([, value])=>value.checked = false);
       loading.value = false;
       pendingDelete.value = false;
       await updatePodTree();

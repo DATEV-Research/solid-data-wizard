@@ -23,10 +23,11 @@ import {
 import {useIsLoggedIn, useSolidProfile, useSolidSession,} from "@datev-research/mandat-shared-composables";
 import {ParsedN3, putResource, SPACE,} from "@datev-research/mandat-shared-solid-requests";
 import {TreeNode} from "primevue/treenode";
-import {computed, ref, watch} from "vue";
+import {computed, Ref, ref, watch} from "vue";
 import {getFileExtension} from "@/utils/fileExtension";
 import {TTL_EXTENSION} from "@/constants/extensions";
 import {parseShapeFile} from "@/utils/parseShapeTree";
+import {ShapeRegistryInfo} from "@/types/shapeRegistryInfo";
 
 /**
  * TODOs
@@ -94,9 +95,14 @@ export const useOrganisationStore = () => {
   const getDataInstanceLabel = (uri: string): string => {
     return `${uri.split("/").at(-1)}`;
   }
+  const checkSkipMatching = (checked:Ref<boolean>) => {
+    if(checked.value){
+      throw new Error("Skip Matching is enabled");
+    }
+  }
 
   return {
-    // storageUri: organisationStorageUri,
+     storageUri: organisationStorageUri,
 
     registryExists: (registryName: string) => uriExists(`${organisationStorageUri.value}${registryName}/`, session),
     registrationExists: (registryName: string, registrationName: string) => uriExists(`${organisationStorageUri.value}${registryName}/${registrationName}/`, session),
@@ -134,11 +140,10 @@ export const useOrganisationStore = () => {
       }
       return registrationUri;
     },
-    applyShapeTreeData: async (registrationUri: string, shapeUri: string, shapeTreeUri: string) => {
+    applyShapeTreeData: async (registrationUri: string, shapeTreeUri: string) => {
       await applyShapeTree(
           registrationUri,
           memberOf.value,
-          shapeUri,
           shapeTreeUri,
           session,
       );
@@ -163,12 +168,12 @@ export const useOrganisationStore = () => {
     deleteRegistry: async (registryUri: string) => {
       await deleteRegistryResource(SOLID_PROFILE_REGISTRY_URI, registryUri, session);
     },
-    getRegistryAndShape: async(localShapeContent: string)=> {
+    getMatchedShapeRegistries: async(localShapeContent: string, skipMatching:Ref<boolean>) : Promise<ShapeRegistryInfo[]>  => {
       try{
-
         // Step 1 Get registries
         const registries = await getRegistryResource(SOLID_PROFILE_REGISTRY_URI, session);
 
+        checkSkipMatching(skipMatching);
         // Step 2 Get Registration URIs
         const registrationUrisArray = await Promise.all(registries.map( async(registryUri) => {
           const registrations = await getRegistryResource(registryUri, session);
@@ -176,22 +181,28 @@ export const useOrganisationStore = () => {
 
         }));
 
+        checkSkipMatching(skipMatching);
+
         const registrationUris = registrationUrisArray.flat();
         //Step 3 Get Shape Tree Uris
-
         const shapeTreeUri = await Promise.all(registrationUris.map( async({registrationUri, registryUri}) => {
           const shapeTrees = await getShapeTreeResource(registrationUri, session);
-          return shapeTrees.map( shapeTreeUri => ({registrationUri, shapeTreeUri, registryUri}));
+          return shapeTrees.map(shapeTreeUri => ({registrationUri, shapeTreeUri, registryUri}));
         }));
+
+        checkSkipMatching(skipMatching);
 
         const shapeTreeWithRegistrations = shapeTreeUri.flat();
         // Step 4 - Get the shape content and compare
 
         const shapeConteData = await Promise.all(
-            shapeTreeWithRegistrations. map( async({registrationUri, shapeTreeUri, registryUri}) => {
+            shapeTreeWithRegistrations.map( async({registrationUri, shapeTreeUri, registryUri}) => {
+              // get the shape content
                 const shapeContent = await getShapeContent(shapeTreeUri, session);
                 const shapeURIs = await parseShapeFile(shapeContent);
+                // compare the shape content with the local shape content
                 const shapeFilesURI = await compareShapeContent(shapeURIs,localShapeContent, session);
+
                 const shapeURI = shapeFilesURI[0];
                 const registrationName = getRegistryLabel(registrationUri);
                 const registryName = getRegistryLabel(registryUri);
@@ -200,9 +211,10 @@ export const useOrganisationStore = () => {
             })
         );
         // Step 5 filter out the shape content which is not null
-        return shapeConteData.map((data) => data?.shapeURI !== undefined ? data : null).filter((data) => data !== null);
+        return shapeConteData.map((data) => data?.shapeURI !== undefined ? data : {}).filter((data) => Object.keys(data).length !== 0);
       }
       catch (e) {
+        return [];
       }
     },
     getFullRegistry: async ()=> {

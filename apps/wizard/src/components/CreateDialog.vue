@@ -13,10 +13,11 @@ import {fileSizeExceeded} from "@/utils/fileSize";
 import {validateFileName} from "@/utils/validateFileName";
 import {registrationDuplicateState} from "@/enums/registrationDuplicateStatus";
 import {renameFile} from "@/utils/renameFile";
+import {ShapeRegistryInfo} from "@/types/shapeRegistryInfo";
 
-const { createRegistry, createRegistration,updateACLPermission, registryExists, registrationExists, createShape, createShapeTree, documentExists, uploadFile, updateProfileRegistry,allShapeFiles, createShapeTreeContainer,applyShapeTreeData, shapeTreeContainerExists,getRegistryAndShape,resourceExists  } = useOrganisationStore();
+const { createRegistry, createRegistration,updateACLPermission, registryExists, registrationExists, createShape, createShapeTree, documentExists, uploadFile, storageUri, updateProfileRegistry,allShapeFiles, createShapeTreeContainer,applyShapeTreeData, shapeTreeContainerExists,getMatchedShapeRegistries,resourceExists  } = useOrganisationStore();
 
-const SHAPE_TREE_CONTAINER_URI = `https://sme.solid.aifb.kit.edu/shapetrees`;
+
 
 const emit = defineEmits<{
   (e: "registryCreated", value: boolean): void;
@@ -35,6 +36,7 @@ const fileNotSelected = computed<boolean>(() => dirty.value && (!fileInput.value
 const isInvalid = computed<boolean>(() => invalidRegistry.value || invalidRegistration.value  || fileNotSelected.value);
 const duplicateRegistrationState = ref<string>(registrationDuplicateState.start);
 
+const shapeTreeContainerURI = computed<string> (()=> `${storageUri.value}shapetrees`);
 /**
  * Dirty is true when the Button Submit was clicked at least once.
  */
@@ -49,11 +51,13 @@ const uploadShapeFile = ref<boolean>(false);
 const toggleShapeContent = ref<boolean>(false);
 const isSubmitDisabled = ref<boolean>(true);
 const foundRegistryAndShapeData = ref([]);
-const selectedRegistryAndShapeData = ref([]);
+const selectedRegistryAndShapeData = ref<ShapeRegistryInfo>({});
+const skipMatching = ref<boolean>(false);
 
 watchEffect(async () => {
   if(shapeContent.value && ttlUpload.value){
-    foundRegistryAndShapeData.value = await getRegistryAndShape(shapeContent.value);
+    //
+    foundRegistryAndShapeData.value = await getMatchedShapeRegistries(shapeContent.value, skipMatching);
     if(foundRegistryAndShapeData.value.length > 0){
       duplicateRegistrationState.value = registrationDuplicateState.Duplicate;
     }
@@ -86,8 +90,8 @@ function resetData(){
 // Add existing registration name to the registry
 async function addExistingRegistrationName(){
   if(selectedRegistryAndShapeData.value.registryName){
-    registryName.value = selectedRegistryAndShapeData.value.registryName;
-    registrationName.value = selectedRegistryAndShapeData.value.registrationName;
+    registryName.value = selectedRegistryAndShapeData.value.registryName!;
+    registrationName.value = selectedRegistryAndShapeData.value.registrationName!;
     await addRegistrationName(false);
   }
   else{
@@ -102,6 +106,7 @@ async function addExistingRegistrationName(){
 async function addRegistrationName(createNewRegistration:boolean): Promise<void>{
   resetErrorMessage();
   dirty.value = true;
+  loading.value = true;
 
   const shapeTree = "shapetrees";
   const registry = registryName.value;
@@ -116,6 +121,7 @@ async function addRegistrationName(createNewRegistration:boolean): Promise<void>
         summary: `'${registration}' already exists with the same`,
         life: 5000,
       });
+    loading.value = false;
       return;
   }
 
@@ -124,6 +130,7 @@ async function addRegistrationName(createNewRegistration:boolean): Promise<void>
     await createShapeTreeContainer(shapeTree);
   }
   if (isInvalid.value) {
+    loading.value = false;
     return;
   }
 
@@ -146,16 +153,13 @@ async function addRegistrationName(createNewRegistration:boolean): Promise<void>
     if(ttlUpload.value && foundRegistryAndShapeData.value.length ===0){
       await createShapeTreeFile(registrationUri);
     }
-    else{
-      const shapeURI = foundRegistryAndShapeData.value[0].shapeURI;
+    else if(ttlUpload.value) {
       const shapeTreeURI = foundRegistryAndShapeData.value[0].shapeTreeURI;
-      await applyShapeTreeData(registrationUri,shapeURI,shapeTreeURI);
+      await applyShapeTreeData(registrationUri,shapeTreeURI);
     }
   }
 
-
   if (input) {
-    loading.value = true;
     try{
       // Upload the file to the registration
       await uploadFile(input, registry, registration);
@@ -187,6 +191,7 @@ async function addRegistrationName(createNewRegistration:boolean): Promise<void>
 
 async function onFileSelect(event: Event) {
   const file: File = event.target.files[0];
+  skipMatching.value = false;
   duplicateRegistrationState.value = registrationDuplicateState.start;
   foundRegistryAndShapeData.value  = [];
   if (file) if (!validateFileName(file.name)) {
@@ -274,21 +279,21 @@ async function createShapeTreeFile(registrationUri:string){
 
   let shapeName = `${extractedShapeName}.shape`;
   let shapeTreeName = `${extractedShapeName}.tree`;
-  let shapeUri = `${SHAPE_TREE_CONTAINER_URI}/${shapeName}`;
-  let shapeTreeUri = `${SHAPE_TREE_CONTAINER_URI}/${shapeTreeName}`;
+  let shapeUri = `${shapeTreeContainerURI.value}/${shapeName}`;
+  let shapeTreeUri = `${shapeTreeContainerURI.value}/${shapeTreeName}`;
   let headers = {};
 
   // check if the shape file already exists
   if(shapeURIs.includes(shapeUri) && foundRegistryAndShapeData.value.length === 0){
     // create new shape file
-    shapeName = await newFileName(SHAPE_TREE_CONTAINER_URI, shapeName, shapeURIs);
-    shapeUri = `${SHAPE_TREE_CONTAINER_URI}/${shapeName}`;
+    shapeName = await newFileName(shapeTreeContainerURI.value, shapeName, shapeURIs);
+    shapeUri = `${shapeTreeContainerURI.value}/${shapeName}`;
   }
   // check if the shapeTree file already exists
   if(shapeTreeURIs.includes(shapeTreeUri) && foundRegistryAndShapeData.value.length === 0){
     // create new shapeTree file
-    shapeTreeName = await newFileName(SHAPE_TREE_CONTAINER_URI,shapeTreeName, shapeTreeURIs);
-    shapeTreeUri = `${SHAPE_TREE_CONTAINER_URI}/${shapeTreeName}`;
+    shapeTreeName = await newFileName(shapeTreeContainerURI.value,shapeTreeName, shapeTreeURIs);
+    shapeTreeUri = `${shapeTreeContainerURI.value}/${shapeTreeName}`;
   }
 
   // ShapeTree content with the shape and shapeTree URI
@@ -296,7 +301,7 @@ async function createShapeTreeFile(registrationUri:string){
 
 <#${shapeTreeName}> a st:ShapeTree ;
   st:expectsType	st:Resource ;
-  st:shape      	<${SHAPE_TREE_CONTAINER_URI}/${shapeName}#${shapeName}> .`
+  st:shape      	<${shapeTreeContainerURI.value}/${shapeName}#${shapeName}> .`
 
 
   headers["Content-type"] ='application/octet-stream';
@@ -304,7 +309,7 @@ async function createShapeTreeFile(registrationUri:string){
   await createShapeTree(shapeTreeUri, shapeTreeContent, headers);
 
   // apply shape tree data to the registration
-  await applyShapeTreeData(registrationUri,shapeUri,shapeTreeUri);
+  await applyShapeTreeData(registrationUri,shapeTreeUri);
 }
 
 function toggleShapeContentView(){
@@ -384,8 +389,10 @@ async function newFileName(uri:string,fileName:string, arrayData?:string[]){
 
           <!-- Show the duplicate data registration -->
           <div class="grid col-12">
-            <div class="col-12" v-if="duplicateRegistrationState === registrationDuplicateState.Checking">Please wait. Checking for Data Registration duplicate..</div>
-            <div class="col-12" v-if="duplicateRegistrationState === registrationDuplicateState.NotFound">No duplicates found <i class="info-icon pi pi-check" style="color: green; font-size: 1.5rem"></i>
+            <div class="col-6" v-if="duplicateRegistrationState === registrationDuplicateState.Checking">Please wait. Checking for Data Registration duplicate..</div>
+            <div class="col-6" v-if="duplicateRegistrationState === registrationDuplicateState.Checking"><Button @click="skipMatching = true" label="Skip checking for Data Registration"></Button></div>
+            <div class="col-12" v-if="duplicateRegistrationState === registrationDuplicateState.NotFound && !skipMatching">No duplicates found <i class="info-icon pi pi-check" style="color: green; font-size: 1.5rem"></i></div>
+            <div class="col-12" v-if="duplicateRegistrationState === registrationDuplicateState.NotFound && skipMatching">Skipped checking of duplicates
             </div>
             <div class="col-6" v-if="duplicateRegistrationState === registrationDuplicateState.Duplicate"><i class="info-icon pi pi-exclamation-triangle" style="font-size: 1rem"></i>A Data Registration with the same Shape was found!</div>
             <div class="col-6" v-if="duplicateRegistrationState === registrationDuplicateState.Duplicate">

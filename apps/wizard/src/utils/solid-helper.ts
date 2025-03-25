@@ -87,7 +87,6 @@ export const getFirstObjectValue = (
 export const applyShapeTree = async (
   registrationUri: string,
   registeredByUri: string,
-  shapeUri: string,
   shapeTreeUri: string,
   session: Session,
 ) => {
@@ -96,17 +95,6 @@ export const applyShapeTree = async (
   if (!registrationStore) {
     throw new Error("UnexpectedRegistrationURI: Not found or invalid");
   }
-
-/*
-  if (!(await uriExists(shapeUri, session))) {
-    const response = await axios({ url: shapeUri, method: "get" });
-    await putResource(shapeUri, response.data, session);
-  }
-  if (!(await uriExists(shapeTreeUri, session))) {
-    const response = await axios({ url: shapeTreeUri, method: "get" });
-    await putResource(shapeTreeUri, response.data, session);
-  }
-*/
 
   const hasShapeTreeMetaData = getFirstObjectValue(registrationUri, INTEROP("registeredShapeTree"), registrationStore);
 
@@ -313,21 +301,6 @@ export const getShapeTreeResource = async (uri:string, session:Session): Promise
 
   if( types.includes(INTEROP("DataRegistration") )){
     urls = __getObjectValues(null, INTEROP("registeredShapeTree"),store);
-  }
-  return urls;
-};
-
-export const getShapeResource = async (uri:string, session:Session): Promise<string[]> => {
-  let store = await requestStore(uri,session);
-  if (store === null) {
-    // Fallback for binary files like PDFs
-    store = await requestStore(`${uri}.meta`,session);
-  }
-  const types: string[] = __getObjectValues(null,RDF("Resource"),store);
-  let urls: string[] = [];
-
-  if( types.includes(INTEROP("ShapeTree") )){
-    urls = __getObjectValues(null, INTEROP("shape"),store);
   }
   return urls;
 };
