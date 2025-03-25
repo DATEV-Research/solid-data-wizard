@@ -390,7 +390,7 @@ async function newFileName(uri:string,fileName:string, arrayData?:string[]){
           <!-- Show the duplicate data registration -->
           <div class="grid col-12">
             <div class="col-6" v-if="duplicateRegistrationState === registrationDuplicateState.Checking">Please wait. Checking for Data Registration duplicate..</div>
-            <div class="col-6" v-if="duplicateRegistrationState === registrationDuplicateState.Checking"><Button @click="skipMatching = true" label="Skip checking for Data Registration"></Button></div>
+            <div class="col-6 text-right pr-5" v-if="duplicateRegistrationState === registrationDuplicateState.Checking"><Button @click="skipMatching = true" label="Skip checking for Data Registration"></Button></div>
             <div class="col-12" v-if="duplicateRegistrationState === registrationDuplicateState.NotFound && !skipMatching">No duplicates found <i class="info-icon pi pi-check" style="color: green; font-size: 1.5rem"></i></div>
             <div class="col-12" v-if="duplicateRegistrationState === registrationDuplicateState.NotFound && skipMatching">Skipped checking of duplicates
             </div>

@@ -29,29 +29,6 @@ import {TTL_EXTENSION} from "@/constants/extensions";
 import {parseShapeFile} from "@/utils/parseShapeTree";
 import {ShapeRegistryInfo} from "@/types/shapeRegistryInfo";
 
-/**
- * TODOs
- *
- * Base SME URI: https://sme.solid.aifb.kit.edu
- *
- * - validate given names using a regex
- * - ☑️ get data registry by URI and check if it exists, sample https://sme.solid.aifb.kit.edu/dataregistry
- *   - ☑️ if it exists, skip creating it
- *   - ☑️ if it does not exist: create data registry for given name using n3.Writer
- * - ☑️ get data registration by URI and check if it exists, sample https://sme.solid.aifb.kit.edu/dataregistry/dataregistrations
- *   - ☑️ if it exists: throw an error,
- *   - ☑️ if it does not exist: create data registration for given name using n3.Writer
- *
- * - ☑️ add upload file button for the user
- * - ☑️ add upload mechanism using the data registry & data registration path.
- * - ☑️ test if it is using the right mime-types and so on.
- * - handle errors
- * - write tests
- */
-
-const SOLD_PDF_BINARY_SHAPE_URI = "https://sme.solid.aifb.kit.edu/shapetrees/pdfBinary.shape"
-const SOLD_PDF_BINARY_SHAPETREE_URI = "https://sme.solid.aifb.kit.edu/shapetrees/pdfBinary.tree"
-const SOLID_PROFILE_REGISTRY_URI = "https://sme.solid.aifb.kit.edu/profile/registry";
 
 export const useOrganisationStore = () => {
   const { isLoggedIn } = useIsLoggedIn();
@@ -100,6 +77,7 @@ export const useOrganisationStore = () => {
       throw new Error("Skip Matching is enabled");
     }
   }
+  const solidProfileRegistryURI = computed<string>(() => `${organisationStorageUri.value}profile/registry` );
 
   return {
      storageUri: organisationStorageUri,
@@ -122,7 +100,7 @@ export const useOrganisationStore = () => {
       await putResource(uri,contentShapeTree,session, headers);
     },
     updateProfileRegistry: async (registryName: string) => {
-      await addProfileRegistryData(`${SOLID_PROFILE_REGISTRY_URI}`,registryName, session);
+      await addProfileRegistryData(solidProfileRegistryURI.value,registryName, session);
     },
     shapeTreeContainerExists: (shapeTreeName: string) => uriExists(`${organisationStorageUri.value}${shapeTreeName}/`, session),
     createShapeTreeContainer: async (shapeTree:string) => {
@@ -166,12 +144,12 @@ export const useOrganisationStore = () => {
       )
     },
     deleteRegistry: async (registryUri: string) => {
-      await deleteRegistryResource(SOLID_PROFILE_REGISTRY_URI, registryUri, session);
+      await deleteRegistryResource(solidProfileRegistryURI.value, registryUri, session);
     },
     getMatchedShapeRegistries: async(localShapeContent: string, skipMatching:Ref<boolean>) : Promise<ShapeRegistryInfo[]>  => {
       try{
         // Step 1 Get registries
-        const registries = await getRegistryResource(SOLID_PROFILE_REGISTRY_URI, session);
+        const registries = await getRegistryResource(solidProfileRegistryURI.value, session);
 
         checkSkipMatching(skipMatching);
         // Step 2 Get Registration URIs
@@ -218,7 +196,7 @@ export const useOrganisationStore = () => {
       }
     },
     getFullRegistry: async ()=> {
-      const registries = await getRegistryResource(SOLID_PROFILE_REGISTRY_URI, session);
+      const registries = await getRegistryResource(solidProfileRegistryURI.value, session);
       const registrations = await Promise.all(registries.map(registrationUri => getRegistryResource(registrationUri, session)));
       const dataInstances = await Promise.all(registrations.map(dataInstances => Promise.all(dataInstances.map(dataInstanceUri => getRegistryResource(dataInstanceUri, session)))));
 
