@@ -15,11 +15,14 @@
                @node-select="onNodeSelect"
                @node-unselect="onNodeSelect"></PodTree>
     </div>
-    <main class="flex flex-column flex-grow-1 main px-4">
-     <h2 class="m-0 p-0 pt-1">{{ name }}</h2>
+    <div style="width: calc(100% - 30rem); min-width:40rem">
+      <main class="flex flex-column flex-grow-1 main px-4" >
+        <h2 class="m-0 p-0 pt-1">{{ name }}</h2>
         <Preview :content="previewData" :type="previewType"></Preview>
         <ProgressSpinner v-if="!previewData && previewEnable"/>
-    </main>
+      </main>
+
+    </div>
 
   </div>
   <UnauthenticatedCard v-else />
@@ -46,7 +49,7 @@ import {TreeSelectionKeys} from "primevue/tree";
 import {TreeNode} from "primevue/treenode";
 import {useConfirm} from "primevue/useconfirm";
 import {useToast} from "primevue/usetoast";
-import {computed, onMounted, ref} from "vue";
+import {computed, onMounted, ref, watchEffect} from "vue";
 import {useOrganisationStore} from "./composables/useOrganisationStore";
 import {capitalizeFirstLetter} from "@/utils/capitalizeFirstLetter";
 
@@ -56,7 +59,7 @@ const confirm = useConfirm();
 const { isLoggedIn } = useIsLoggedIn();
 const { session, restoreSession } = useSolidSession();
 
-const {  getFullRegistry, deleteRegistry } = useOrganisationStore();
+const {  getFullRegistry, deleteRegistry, storageUri } = useOrganisationStore();
 
 const podNodes = ref<TreeNode[]>([]);
 const loading = ref<boolean>(true);
@@ -73,11 +76,13 @@ const previewEnable = ref<boolean>(false);
 const toast = useToast();
 
 onMounted(() => {
-  restoreSession().then(() => {
-    updatePodTree();
-  });
+  restoreSession();
 });
-
+watchEffect(()=>{
+  if(storageUri.value){
+    updatePodTree();
+  }
+});
 function onNodeSelect(node: TreeNode){
   previewEnable.value = true;
   name.value = capitalizeFirstLetter(node.label ?? '');
@@ -150,7 +155,6 @@ async function deleteSelectedNodes(){
     accept: async () => {
       loading.value = true;
       pendingDelete.value = true;
-
       try {
         for (const uriToDelete of nodesUrisToBeDeleted) {
           await deleteRegistry(uriToDelete);
@@ -169,7 +173,8 @@ async function deleteSelectedNodes(){
         console.error("[deleteSelectedNodes] Failed due to error: ", err);
       }
 
-      selectedNodes.value = {};
+
+      Object.entries(selectedNodes.value).forEach(([, value])=>value.checked = false);
       loading.value = false;
       pendingDelete.value = false;
       await updatePodTree();

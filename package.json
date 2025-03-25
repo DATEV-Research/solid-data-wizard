@@ -21,6 +21,8 @@
     "prepare": "husky"
   },
   "dependencies": {
+    "@shexjs/validator": "^1.0.0-alpha.29",
+    "@types/shexj": "^2.1.7",
     "@vueuse/components": "^11.1.0",
     "@vueuse/core": "^11.1.0",
     "axios": "^1.7.2",
@@ -31,6 +33,7 @@
     "primeicons": "^6.0.1",
     "primevue": "^3.52.0",
     "register-service-worker": "^1.7.2",
+    "shex": "^1.0.0-alpha.29",
     "vue": "~3.4.38",
     "vue-i18n": "^10.0.5",
     "vue-router": "^4.0.3"
