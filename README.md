@@ -1,251 +1,129 @@
-# SOLID B2B Showcase - MANDAT Demo Apps
+# Solid Data Wizard Documentation
 
-[![CI](https://github.com/DATEV-Research/Solid-B2B-showcase/actions/workflows/ci.yml/badge.svg?branch=market)](https://github.com/DATEV-Research/Solid-B2B-showcase/actions/workflows/ci.yml)
+## Overview
 
-In this demo, we showcase the initialisation of a business contract between the SME and the BANK in form of a credit
-grant.
-An overview of the current state is provided in Figure 1, where the starting point is indicated by step 0 "create
-demand". You may follow the numeric ordering to get an idea of the flow.
+The Solid Data Wizard is an application designed to manage data registrations and 
+registries using Solid Pods. It provides a user-friendly interface for creating and 
+managing data registrations and check for duplicate shape files for the turtle file. 
 
-![Figure 1](/img/current_state.png)
-Figure 1: The current state of the demo.
+## Features
 
-- The _Credit App_ is available at [/bank/](/bank/).
-- The _Banking App_ is available at [/sme/](/sme/).
-- The _Data App_ is available at [/tao/](/tao/).
-- We use Solid Pods provided by
-  a [Community Solid Server](https://github.com/CommunitySolidServer/CommunitySolidServer) (v5.0.0) instance.
++ **Create Data Registrations:** Allows users to create new data registrations.
++ **Check for Duplicates:** Automatically checks for duplicate data registrations.
++ **Manage Registries:** Provides options to manage and select data registries.
++ **Document Upload:** Allows users to upload documents to their data registrations.
++ **Registration View:** Provides a tree view of data registrations.
++ **Delete Registry/Registration/Document:** Provides the functionality to delete the registry, registration or the uploaded document.
 
-Currently, the following sequence is showcased:
+## Prerequisites
 
-```mermaid
-sequenceDiagram
-actor Tom
-participant KMU_Pod as SME_Pod
-actor Lisa
-participant Bank_Pod as BANK_Pod
-actor Max 
-participant StB_Pod as TAX_Pod
++ Node.js (v16.19.0)
 
+## Installation
 
++ Clone the repository:
+<pre>
+git clone https://github.com/DATEV-Research/Solid-B2B-showcase.git 
+cd Solid-B2B-showcase/apps/wizard 
+</pre>
 
-%% Anbahnung Partnerschaft
++ Install dependencies:
+<pre>npm install </pre>
 
-%% grant access to that resource to bank
-note over Lisa,Bank_Pod: Make Demand Inbox publically available.
-    Lisa->>+Bank_Pod: [HTTP PATCH /credits/demands/.acl] (grant public append)
-    Bank_Pod-->>-Lisa: [HTTP 205 RESET CONTENT] location .acl
+## Project Structure
+<pre>
+solid-data-wizard/
+├── apps/
+│   ├── wizard/
+│   │   ├── src/
+│   │   │   ├── components/
+│   │   │   ├── utils/
+│   │   │   ├── App.vue
+│   │   │   ├── main.ts
+│   │   │   ├── ...
+├── node_modules/
+├── package.json
+├── README.md
+└── ...
+</pre>
 
-note over Tom,SME_Pod: Make data requests container available for Max.
-    Tom->>+SME_Pod: [HTTP PATCH /data-requests/.acl] (grant Max read)
-    SME_Pod-->>-Tom: [HTTP 205 RESET CONTENT] location .acl
++ **src/:** Contains the source code of the application.
++ **components/:** Contains Vue components.
++ **utils/:** Contains reusable functions.
++ **node_modules/:** Contains project dependencies.
++ **package.json:** Project configuration and dependencies.
 
-note over Tom,StB_Pod: Initialising Business Contract
+## Usage
 
-    %% (1) Anfrage Kreditvertrag
-    note over Tom,Bank_Pod: (0) request credit grant
++ Start the development server:  
+<pre>npm run serve </pre>
++ Open the application in your browser at http://localhost:8080.
 
-    %% create potential callback resource for TAX to patch data processed in
-    Tom->>+KMU_Pod: [HTTP POST /data-processed/] (callback resource)
-    KMU_Pod-->>-Tom: [HTTP 201 CREATED] location {uuid}
+## Development
 
-    %% grant write access to TAX and read access to bank
-    Tom->>+KMU_Pod: [HTTP PATCH /data-processed/{uuid}.acl] (grant TAX write, BANK read)
-    KMU_Pod-->>-Tom: [HTTP 205 RESET CONTENT] location {uuid}.acl
+### Creating a New Component
++ Create a new file in the src/components/ directory.
++ Define the Vue component in the new file.
 
-    %% create callback resource for bank to patch data request in
-    Tom->>+KMU_Pod: [HTTP POST /data-requests/] (callback resource)
-    KMU_Pod-->>-Tom: [HTTP 201 CREATED] location {uuid}
+### Creating a New View
++ Create a new file in the <pre> src/views/</pre> 
++ Define the Vue view in the new file.
 
-    %% grant write access to bank and read access to tax
-    Tom->>+KMU_Pod: [HTTP PATCH /data-requests/{uuid}.acl] (grant BANK write, TAX read)
-    KMU_Pod-->>-Tom: [HTTP 205 RESET CONTENT] location {uuid}.acl
+## Application
 
-    %% create credit demand in bank pod
-    Tom->>+Bank_Pod: [HTTP POST /credits/demands/] credit demand
-    Bank_Pod-->>-Tom: [HTTP 201 CREATED] location {uuid}
+### 1. Default View
+The default view of the Solid Data Wizard application is shown below. The view contains the list
+of data registrations and options to create new data registrations and manage registries.
+![Figure 1](./img/1-defaultView.png)
 
+### 2. Create Data Registration
+The Create Data Registration view allows users to create new data registrations. Users can enter 
+the details of the data registration, data registry  and upload a document.
+![Figure 2](./img/2-createDataRegistration.png)
 
-    note over Lisa,Bank_Pod: (1) process credit grant
+### 3. Uploading Turtle File
+Users can upload a Turtle file to create a new data registration. The Turtle file should be valid. <a href="https://felixlohmeier.github.io/turtle-web-editor/" target="_blank" >Online Turtle File Validator</a>.
+![Figure 3](./img/3-uploadingTurtleFile.png)
 
-    %% fetch credit demand
-    Lisa->>+Bank_Pod: [HTTP GET /credits/demands/}]
-    Bank_Pod-->>-Lisa: [HTTP 200 OK] credit demands
-    Lisa->>+Bank_Pod: [HTTP GET /credits/demands/{uuid}]
-    Bank_Pod-->>-Lisa: [HTTP 200 OK] credit demand
+If the turtle file is valid, the shape file will be created. The user can view the created shape file
+by clicking on the "View created shape file" button. User can also edit and save the shape file.
 
-    %% grant access to that resource to KMU as they do not have access by default
-    %% The following .acl patch is equivalent to acknowledging the demand. 
-    %% Otherwise the demand may not exist at all.
-    Lisa->>+Bank_Pod: [HTTP PATCH /credits/demands/{uuid}.acl] (grant SME read)
-    Bank_Pod-->>-Lisa: [HTTP 205 RESET CONTENT] location {uuid}.acl
+![Figure 3a](./img/3-viewCreatedShapeFile.png)
 
-    %% process credit demand to decide what to do next
-    opt 
-        Lisa-)Lisa: processing
-    end
+User also have the option to upload the Shape File directly. The Shape File should be valid. <a href="https://rawgit.com/shexSpec/shex.js/main/packages/shex-webapp/doc/shex-simple.html" target="_blank" >Online Shape File Validator</a>.
 
-    %% (2) Nachfrage aktuelle Unternehmenssituation
-    note over Tom,Lisa: (2) request company data
+User can enter the registry and registration name and submit the form. The data registration will be created.
 
-    %% create data request, i.e., update the callback resource
-    Lisa->>+KMU_Pod: [HTTP PATCH /data-requests/{uuid}] data request
-    KMU_Pod-->>-Lisa: [HTTP 205 RESET CONTENT] location /data-requests/{uuid}
+#### 3.1. Uploading Turtle File with shape File present in the pod
 
-    %% (3) Anfrage Nachweis über Unternehmenssituation
-    note over Tom,KMU_Pod: (.2) "forward" data request
+Once the turtle file is uploaded, the script will check if any shape file present in the 'shapetrees' folder in the pod.
+The view will show the registry path to the user and ask if the user wants to use the shape file present in the pod.
 
-    %% Notify TAX
-    opt
-        %% note over Lisa: This Notification does not contain the request, only a link to the request.
-        Lisa->>+SME_Pod: [HTTP POST /inbox/] Linked Data Notification
-        SME_Pod-->>-Lisa: [HTTP 201 Created] location /inbox/{uuid}
-        Tom->>+SME_Pod: [HTTP GET /inbox/]
-        SME_Pod-->>-Tom: [HTTP 200 OK] Inbox
-        Tom->>+SME_Pod: [HTTP GET /inbox/{uuid}]
-        SME_Pod-->>-Tom: [HTTP 200 OK] notification
-        Tom->>+StB_Pod: [HTTP POST /inbox/] Linked Data Notification
-        StB_Pod-->>-Tom: [HTTP 201 Created] location /inbox/{uuid}
-    end
+![Figure 3b](./img/3.1-shapeFilePresent.png)
 
-    note over KMU_Pod,StB_Pod: (3) process data request
-    %% Notice the data request
-    Max->>+StB_Pod: [HTTP GET /data-requests/]
-    StB_Pod-->>-Max: [HTTP 200 OK] data request container
-    Max->>+StB_Pod: [HTTP GET /data-requests/{uuid}]
-    StB_Pod-->>-Max: [HTTP 200 OK] data request
-    opt
-        Max->>Max: processing
-        Max->>StB_Pod: 
-        Max->>KMU_Pod: 
-        Max->>Max: 
-    end
-    %% provide data as reponse to data request, patching into the callback resource
-    Max->>+KMU_Pod: [HTTP PATCH /data-processed/{uuid}] data processed
-    KMU_Pod-->>-Max: [HTTP 205 RESET CONTENT] location {uuid}
+While the compression of the shape file is running user also have the option to skip the compression process.
+User also have a option to create a new Registry.
+### 4. Uploading PDF or image file
 
-    %% (4) Lieferung Nachweis
-    note over Tom,KMU_Pod: (.access control) "forward" provided data
-    %% Notify TAX
-    opt
-        %% note over Lisa: This Notification does not contain the data, only a link to the data.
-        Max->>+SME_Pod: [HTTP POST /inbox/] Linked Data Notification
-        SME_Pod-->>-Max: [HTTP 201 Created] location /inbox/{uuid}
-        Tom->>+SME_Pod: [HTTP GET /inbox/]
-        SME_Pod-->>-Tom: [HTTP 200 OK] Inbox
-        Tom->>+SME_Pod: [HTTP GET /inbox/{uuid}]
-        SME_Pod-->>-Tom: [HTTP 200 OK] notification
-        Tom->>+Bank_Pod: [HTTP POST /inbox/] Linked Data Notification
-        Bank_Pod-->>-Tom: [HTTP 201 Created] location /inbox/{uuid}
-    end
-    note over KMU_Pod,Lisa: (4,5) access and process provided data
-    %% Notice the data provided
-    Lisa->>+KMU_Pod: [HTTP GET /data-processed/{uuid}]
-    KMU_Pod-->>-Lisa: [HTTP 200 OK] data processed
-    opt 
-        Lisa-)Lisa: processing
-    end
-    note over Lisa: Omitting the case where no offer is made.
+User can upload a PDF or image file to create a new data registration. 
 
-    %% (5) Lieferung Kreditangebot
-    note over Tom,Bank_Pod: (6) make an offer
-    %% create credit offer in bank pod
-    Lisa->>+Bank_Pod: [HTTP POST /credits/offers/] credit offer
-    Bank_Pod-->>-Lisa: [HTTP 201 CREATED] location {uuid}
-    %%opt
-    %% patch DEMAND to point to Offer
-    %% may be semantically be iffy, but technically it works :)
-    Lisa->>+Bank_Pod: [HTTP PATCH /credits/demands/{uuid}] (include offer {uuid})
-    Bank_Pod-->>-Lisa: [HTTP 205 RESET CONTENT] location {uuid}
-    %% end
-    %% somehow word of the offer needs to reach the KMU either by patching the demand or notification
-    opt
-        %% Notify KMU
-        %% note over KMU_Pod,Lisa: This Notification does not contain the request, only a link to the request.
-        Lisa->>+KMU_Pod: [HTTP POST /inbox/] Linked Data Notification
-        KMU_Pod-->>-Lisa: [HTTP 201 Created] location /inbox/{uuid}
-    end
-    %% Lookup demand update 
-    Tom->>+KMU_Pod: [HTTP GET /credits/demands/{uuid}]
-    KMU_Pod-->>-Tom: [HTTP 200 OK] credit demand
-    %% Lookkup offer
-    Tom->>+KMU_Pod: [HTTP GET /credits/offers/{uuid}]
-    KMU_Pod-->>-Tom: [HTTP 200 OK] credit offer
-    %% process offer
-    opt
-        Tom-)Tom: processing
-    end
-        %% ((6)) Akzeptiert Kreditangebot
-    note over Tom,Bank_Pod: (7) make an order
-    %% create credit order in bank pod
-    Tom->>+Bank_Pod: [HTTP POST /credits/orders/] credit order
-    Bank_Pod-->>-Tom: [HTTP 201 CREATED] location {uuid}
-```
+![Figure 4](./img/4-uploadingImageFile.png)
 
-## Entwicklung
+### 5. Uploaded documents view
 
-### Allgemeine Infos
-- mit Lerna einen Task ausführen: `npx lerna run TASK`
-  - führt den Task für **alle** Apps/Libs aus, die den Task in **ihrer** `package.json` als Script aufgeführt haben
-  - mit dem Parameter `--scope` kann die Auswahl der Apps/Libs anhand ihres Package-Namen beschränkt werden
+#### 5.1. Turtle File View
 
+![Figure 5](./img/5.1-turtleFileView.png)
 
-### Ein neues NPM-Package installieren
-Sämtliche Pakete sollten stets in der `package.json` im **Root** installiert werden.  
-Dementsprechend ist ein npm install auch zwingend im **Root** Verzeichnis auszuführen und **nicht** in einem der app Unterordner.
+Registration RDF data view linked with the shape Tree file.
 
+![Figure 5a](./img/5.1-registeredRDFData.png)
 
-### Eine neue Lib erstellen
+#### 5.2. Image File View
 
-Go to [Solid-B2B-showcase-libs](https://github.com/DATEV-Research/Solid-B2B-showcase-libs)
+![Figure 5.2](./img/5.2-imageFileView.png)
 
-### Eine neue App erstellen
-1. Ordner entsprechend dem App-Namen unter `/apps` anlegen
-2. Im Ordner mit der Vue-Cli die App erstellen: `npx @vue/cli create .` _(Alternativ: global installierte Vue-Cli nutzen)_
-   - zu aktivierende Features: `Babel, TS, Linter`
-   - Vue-Version: `3.x`
-   - Linter/Formatter: `Standard`
-   - Configs: `In dedicated config files`
-3. App-spezifische `package.json` anpassen
-   - alle (Dev-)Dependencies entfernen
-   - folgende Config ergänzen:
-      ```json
-      {
-        //...
-        "vuePlugins": {
-            "resolveFrom": "../../"
-        }
-      }
-      ```
-4. `npm install` im Root des Monorepos ausführen
-5. `vue.config.js` wie folgt überschreiben:
-   ```js
-   module.exports = defineConfig({
-        ...vueBaseConfig,
-        outputDir: '../../dist/%NAME_DER_APP%',
-        devServer: {
-            port: %PORT_FUER_APP_SERVE%
-        },
-    })
-    ```
-    > Die Platzhalter `%...%` sind entsprechend zu ersetzen.
-6. Änderungen an der `README.md` im Root zurücksetzen
-7. `.eslintrc.js` wie folgt überschreiben:
-   ```js
-   module.exports = {
-     extends: [
-       "../../.eslintrc.js",
-     ],
-   };
-   ```
-8. `babel.config.js` wie folgt überschreiben:
-   ```js
-   module.exports = {
-     extends: '../../babel.base-config.js',
-   }
-   ``` 
-9. _(optional)_ in app-spezifischer `tsconfig.json` die `ts.base-config.json` extenden
-10. _(optional)_ in der `package.json` im Root `lerna`-Skripte für die App ergänzen
+#### 5.3. Image File View
 
-### Getestet mit folgenden node-Versionen
-- v16.19.0
+![Figure 5.3](./img/5.3-pdfFileView.png)
+

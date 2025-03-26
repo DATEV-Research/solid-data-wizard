@@ -16,7 +16,7 @@
                @node-unselect="onNodeSelect"></PodTree>
     </div>
     <div style="width: calc(100% - 30rem); min-width:40rem">
-      <main class="flex flex-column flex-grow-1 main px-4" >
+      <main class="flex flex-column h-full flex-grow-1 main px-4" >
         <h2 class="m-0 p-0 pt-1">{{ name }}</h2>
         <Preview :content="previewData" :type="previewType"></Preview>
         <ProgressSpinner v-if="!previewData && previewEnable"/>
