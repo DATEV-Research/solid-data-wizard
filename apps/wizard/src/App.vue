@@ -43,7 +43,7 @@ import PodTree from "@/components/PodTree.vue";
 import Preview from "@/components/Preview.vue";
 import ProgressSpinner from "primevue/progressspinner";
 import {DacklHeaderBar, UnauthenticatedCard} from "@datev-research/mandat-shared-components";
-import {useIsLoggedIn, useSolidSession} from "@datev-research/mandat-shared-composables";
+import {useIsLoggedIn, useSolidProfile, useSolidSession} from "@datev-research/mandat-shared-composables";
 import Toast from "primevue/toast";
 import {TreeSelectionKeys} from "primevue/tree";
 import {TreeNode} from "primevue/treenode";
@@ -56,8 +56,11 @@ import {capitalizeFirstLetter} from "@/utils/capitalizeFirstLetter";
 const appLogo = require('@/assets/logo.svg');
 const confirm = useConfirm();
 
-const { isLoggedIn } = useIsLoggedIn();
 const { session, restoreSession } = useSolidSession();
+const { memberOf } = useSolidProfile()
+const isLoggedIn = computed(() => {
+  return ((session.webId && !memberOf) || (session.webId && memberOf && session.rdp) ? true : false)
+});
 
 const {  getFullRegistry, deleteRegistry, storageUri } = useOrganisationStore();
 
@@ -71,6 +74,7 @@ const visible = ref(false);
 const previewData = ref<Blob | undefined>(undefined);
 const previewType = ref('');
 const previewEnable = ref<boolean>(false);
+
 
 
 const toast = useToast();
